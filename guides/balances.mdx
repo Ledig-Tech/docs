@@ -1,0 +1,44 @@
+---
+title: "Balances"
+description: "Read available and reserved balances from the Ledig ledger."
+---
+
+## Read balances
+
+`GET /v1/balances` returns one balance per currency held by the profile:
+
+```json
+{
+  "status": "success",
+  "data": [
+    { "currency": "NGN", "available": "1500000.00", "reserved": "0.00" },
+    { "currency": "USDT", "available": "250.00", "reserved": "25.00" }
+  ]
+}
+```
+
+`GET /v1/balances/{currency}` returns a single currency:
+
+```http
+GET /v1/balances/NGN
+```
+
+If the profile has never held that currency, the read creates the balance record and returns zero. A balance read is safe to repeat.
+
+## What the fields mean
+
+| Field | Meaning |
+| --- | --- |
+| `currency` | Currency code, uppercase |
+| `available` | Amount free to quote, transfer or convert |
+| `reserved` | Amount held for an in-flight operation |
+
+Amounts are decimal strings, not numbers. Parse them with a decimal type and never with floating point. The currency's precision is part of the currency catalogue.
+
+Balances are per profile and currency. They are not per wallet: a crypto deposit wallet holds addresses, not a separate ledger balance.
+
+## Where balances come from
+
+Ledger postings own every balance. A provider webhook or a successful provider response does not change a balance on its own; the owning service and the ledger complete the movement before the balance reflects it.
+
+Use [Transactions](/guides/transactions) to see what produced a balance change.

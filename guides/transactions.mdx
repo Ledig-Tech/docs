@@ -1,0 +1,70 @@
+---
+title: "Transactions"
+description: "Read the customer transaction history and a single transaction."
+---
+
+Transactions are the customer-facing record of money movement. They are the right source for history and for polling after a transfer.
+
+## List transactions
+
+```http
+GET /v1/transactions?currency=NGN&period=30d&limit=20
+```
+
+| Query | Meaning |
+| --- | --- |
+| `status` | Filter by status |
+| `currency` | Filter by currency code |
+| `category` | Filter by category |
+| `type` | Filter by transaction type |
+| `reference` | Filter by reference |
+| `isCredit` | `true` for credits, `false` for debits |
+| `isFiat` | `true` for fiat, `false` for crypto |
+| `period` | `7d`, `30d`, `90d` or `1y` |
+| `from` / `to` | Explicit range; use either this or `period` |
+| `limit` | Page size, at most 100 |
+| `cursor` | Opaque cursor from `pagination.nextCursor` |
+| `sort` | `asc` or `desc` |
+
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "txn_example",
+      "reference": "order-1042",
+      "category": "payout",
+      "type": "crypto",
+      "amount": "100",
+      "currency": "USDT",
+      "status": "completed",
+      "description": "Payout to recipient",
+      "isCredit": false,
+      "isFiat": false,
+      "createdAt": "2026-10-22T09:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "nextCursor": null,
+    "previousCursor": null
+  }
+}
+```
+
+Amounts are decimal strings. `isCredit` tells you the direction; `isFiat` tells you the rail. Use them instead of parsing the description.
+
+## Read one transaction
+
+```http
+GET /v1/transactions/{id}
+```
+
+The detail response returns the same customer fields for one transaction.
+
+## What is not part of the public contract
+
+Ledger line references, internal versions and service metadata are not part of the customer contract. Do not depend on them even if a response currently includes them; the public schema does not guarantee them.
+
+## Polling
+
+To follow a transfer, poll [the transfer](/guides/transfers). To reconcile history, page through transactions with the cursor and stop when `pagination.nextCursor` is `null`. See [Pagination](/guides/pagination).

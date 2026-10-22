@@ -30,6 +30,9 @@ quickstart.mdx                      access to first signed request
 auth/authentication.mdx             HMAC signing and key lifecycle
 errors/errors-and-troubleshooting.mdx   envelope, codes, limits, retries
 hooks/webhooks.mdx                  delivery status and polling
+guides/                             balances, funding, recipients, quotes,
+                                    transfers, transactions, pagination,
+                                    idempotency
 api-reference/introduction.mdx      API reference landing page
 openapi/public.yaml                 generated public contract (when available)
 logo/, favicon.png                  brand assets

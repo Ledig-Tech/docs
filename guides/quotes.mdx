@@ -1,0 +1,101 @@
+---
+title: "Quotes"
+description: "Price a conversion or payout and get executable terms."
+---
+
+A quote fixes the rate, the destination amount and an expiry. Nothing moves until a [transfer](/guides/transfers) consumes the quote.
+
+## 1. Choose a payment method
+
+For a payout, list the payment options for the corridor:
+
+```http
+GET /v1/quotes/payment-options?type=withdraw&currency=NGN&amount=100000
+```
+
+| Query | Required | Meaning |
+| --- | --- | --- |
+| `type` | Yes | `deposit` or `withdraw` |
+| `currency` | Yes | Destination currency code |
+| `amount` | No | Amount to check against the option's limits |
+
+Each option returns a stable `paymentMethodId`, its channel, name, description, currency, fees, minimum and maximum amounts, and whether conversion is supported. Pass one of its `paymentMethodIds` in the quote's `payOut`.
+
+## 2. Create the quote
+
+```http
+POST /v1/quotes
+Content-Type: application/json
+```
+
+```json
+{
+  "reference": "order-1042",
+  "sourceCurrency": "USDT",
+  "destinationCurrency": "NGN",
+  "sourceAmount": "100",
+  "payOut": {
+    "type": "fiat",
+    "recipientId": "rcp_example",
+    "paymentMethodId": "pm_example"
+  }
+}
+```
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `sourceCurrency` | Yes | Currency you are sending |
+| `destinationCurrency` | Yes | Currency you are receiving or paying out |
+| `sourceAmount` | Yes | Positive decimal string, up to 18 decimal places |
+| `reference` | No | Your reference, 1–64 characters |
+| `payOut` | No | Required for a same-currency payout; see below |
+
+`payOut` accepts:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `type` | Yes | `fiat` or `crypto` |
+| `recipientId` | Yes | An approved [recipient](/guides/recipients) |
+| `paymentMethodId` | Yes | From the payment options response |
+| `chain` | No | Crypto network, when the destination needs it |
+| `narration` | No | Description sent with the payout |
+
+The response contains the quote ID, the source and destination amounts, the rate, the status and `expiresAt`:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "qte_example",
+    "reference": "order-1042",
+    "sourceCurrency": "USDT",
+    "destinationCurrency": "NGN",
+    "sourceAmount": "100",
+    "destinationAmount": "159000",
+    "rate": "1590",
+    "status": "pending",
+    "expiresAt": "2026-10-22T09:05:00.000Z",
+    "createdAt": "2026-10-22T09:00:00.000Z"
+  }
+}
+```
+
+The server calculates `destinationAmount`. Never calculate it from the indicative rates endpoint: a rate is a reference, a quote is executable.
+
+## Rules
+
+- A quote that converts between currencies can omit `payOut`. A quote that pays out in the same currency must include it.
+- `payIn` with `type: "temporary_bank_account"` is reserved but **not implemented**. Requests that send it return `501 NOT_IMPLEMENTED`.
+- A quote is single-use. A transfer consumes it, and a consumed or expired quote cannot be used again.
+- `expiresAt` is authoritative. Create a new quote rather than retrying an expired one.
+
+## Read quotes
+
+| Operation | Path |
+| --- | --- |
+| List | `GET /v1/quotes` |
+| Read | `GET /v1/quotes/{id}` |
+
+Lists use cursor pagination. See [Pagination](/guides/pagination).
+
+Next: [Transfers](/guides/transfers).

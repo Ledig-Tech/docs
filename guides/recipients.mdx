@@ -1,0 +1,102 @@
+---
+title: "Recipients"
+description: "Register and manage payout destinations."
+---
+
+A recipient is a saved destination for a payout: a bank account, a mobile-money account or a crypto address. Recipients are owned by the profile that created them.
+
+## Create a recipient
+
+```http
+POST /v1/recipients
+Content-Type: application/json
+```
+
+```json
+{
+  "type": "ngn_bank_transfer",
+  "currency": "NGN",
+  "country": "NG",
+  "fields": [
+    { "name": "accountName", "value": "Example Trading Ltd" },
+    { "name": "accountNumber", "value": "0123456789" },
+    { "name": "bankCode", "value": "000000" },
+    { "name": "bankName", "value": "Example Bank" },
+    { "name": "currency", "value": "NGN" },
+    { "name": "countryCode", "value": "NG" }
+  ]
+}
+```
+
+`type` selects the destination requirement. The requirement defines the required `fields` for that corridor. For a crypto destination, use `type: "crypto_address"` with `network`, `address` and `accountName`.
+
+Optional inputs:
+
+| Field | Purpose |
+| --- | --- |
+| `legalEntityType` | Legal form of the destination account holder |
+| `oneTime` | Mark a destination that should be used once |
+
+The error names a missing required value. Contact support if you do not have the requirement fields for a corridor.
+
+## Adding is not approval
+
+A new recipient starts in `reviewStatus: pending`. It cannot be used for a payout until it is approved.
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "rcp_example",
+    "type": "ngn_bank_transfer",
+    "currency": "NGN",
+    "country": "NG",
+    "reviewStatus": "pending",
+    "active": true,
+    "createdAt": "2026-10-22T09:00:00.000Z"
+  }
+}
+```
+
+The response also contains the destination details you supplied.
+
+| Review status | Meaning |
+| --- | --- |
+| `pending` | Submitted and awaiting review |
+| `approved` | Usable for payouts |
+| `rejected` | Not usable |
+| `revoked` | Approval withdrawn |
+
+Approval applies to the exact destination details you submitted. A changed bank account number or crypto address is not covered by the earlier approval.
+
+## Manage recipients
+
+| Operation | Path |
+| --- | --- |
+| Create | `POST /v1/recipients` |
+| List | `GET /v1/recipients` |
+| Read | `GET /v1/recipients/{id}` |
+| Delete | `DELETE /v1/recipients/{id}` |
+
+Lists use cursor pagination. See [Pagination](/guides/pagination).
+
+A deleted recipient can no longer be used. Deleting does not remove the history of payouts already sent to it.
+
+## Use a recipient in a payout
+
+Pass the approved recipient in the quote's `payOut`:
+
+```json
+{
+  "sourceCurrency": "USDT",
+  "destinationCurrency": "NGN",
+  "sourceAmount": "100",
+  "payOut": {
+    "type": "fiat",
+    "recipientId": "rcp_example",
+    "paymentMethodId": "pm_example"
+  }
+}
+```
+
+See [Quotes](/guides/quotes) for the payout fields and [Transfers](/guides/transfers) for execution.

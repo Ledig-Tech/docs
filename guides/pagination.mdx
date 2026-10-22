@@ -1,0 +1,55 @@
+---
+title: "Pagination"
+description: "Walk list endpoints with opaque cursors."
+---
+
+List endpoints that support pagination accept `limit`, `cursor` and `sort`, and return a `pagination` object:
+
+```json
+{
+  "status": "success",
+  "data": [],
+  "pagination": {
+    "nextCursor": "eyJpZCI6...",
+    "previousCursor": null
+  }
+}
+```
+
+## Rules
+
+- `limit` is the page size, with a maximum of 100.
+- `cursor` is opaque. Pass back exactly the value you received; do not build or decode one.
+- `sort` is `asc` or `desc`.
+- `nextCursor` is `null` on the last page. Stop there.
+- `previousCursor` is `null` on the first page.
+- Do not assume a default page size. Always read `pagination.nextCursor`.
+
+## Walk a list
+
+```js
+let cursor;
+const rows = [];
+
+do {
+  const query = new URLSearchParams({ limit: "100", ...(cursor ? { cursor } : {}) });
+  const response = await signedGet(`/v1/transactions?${query}`);
+  const body = await response.json();
+
+  rows.push(...body.data);
+  cursor = body.pagination?.nextCursor ?? null;
+} while (cursor);
+```
+
+`signedGet` is your request helper with the headers from [Authentication](/auth/authentication).
+
+## Pages and resources
+
+| Endpoint | Pagination |
+| --- | --- |
+| `GET /v1/transactions` | Yes |
+| `GET /v1/quotes` | Yes |
+| `GET /v1/recipients` | Yes |
+| `GET /v1/wallets` | No; returns the profile's wallets |
+
+A cursor is only valid for the filters and sort it was created with. Changing a filter starts a new walk.
