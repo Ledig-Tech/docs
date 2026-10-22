@@ -1,32 +1,47 @@
 ---
 title: "API reference"
-description: "The machine-readable contract is being finalised."
+description: "The customer operations available to authenticated business integrations."
 ---
 
 <Info>
-  The endpoint reference is not published yet. The public OpenAPI contract is being finalised and will appear in this tab, generated from the runtime contract and validated in CI.
+  This reference is generated from the Ledig runtime contract. It is a preview: response schemas are still being finalised, and only the operations listed here are public.
 </Info>
 
-## What will be published
+## Base URL
 
-The reference will cover the operations available to authenticated business integrations:
+| Environment | Base URL |
+| --- | --- |
+| Sandbox | `https://api-staging.ledig.io` |
 
-- supported currencies and networks
-- indicative rates
-- ledger balances
-- fiat funding accounts
-- crypto deposit wallets
+Production credentials and a production base URL are not yet published.
+
+## Authentication
+
+Every operation except `GET /v1/health` requires a business API key and an HMAC-SHA256 signature. Each operation lists its required scope under **Required scope**.
+
+Read [Authentication](/auth/authentication) for the exact payload, required headers and working examples.
+
+## What is public
+
+This reference covers customer operations only:
+
+- currencies, rates and balances
+- fiat funding accounts and crypto deposit wallets
 - recipients
-- payment options and quotes
-- transfers
+- payment options, quotes and transfers
 - transaction history
 
-Each operation will list its method, path, permission, request schema, response schema and errors.
+Dashboard, onboarding, API-key management and staff endpoints are not part of the public machine API and do not appear here.
 
-## Until then
+## Errors
 
-- Base URL: `https://api-staging.ledig.io`
-- Authentication: [HMAC signing with an API key](/auth/authentication)
-- Errors: [response envelope and codes](/errors/errors-and-troubleshooting)
+Every error uses the shared envelope `{ "status": "error", "message": string, "code": string }`. See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for codes, limits and retry rules.
 
-Contact [admin@ledig.io](mailto:admin@ledig.io) for the current contract and a guided sandbox walkthrough. Do not build against older endpoint documentation; it describes a different platform.
+## Guides
+
+- [Balances](/guides/balances)
+- [Funding](/guides/funding)
+- [Recipients](/guides/recipients)
+- [Quotes](/guides/quotes)
+- [Transfers](/guides/transfers)
+- [Transactions](/guides/transactions)

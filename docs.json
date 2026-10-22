@@ -56,13 +56,30 @@
       },
       {
         "tab": "API reference",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "api-reference/introduction"
-            ]
-          }
+        "openapi": "openapi/public.yaml",
+        "pages": [
+          "api-reference/introduction",
+          "GET /v1/health",
+          "GET /v1/currencies",
+          "GET /v1/rates",
+          "GET /v1/balances",
+          "GET /v1/balances/{currency}",
+          "POST /v1/wallets",
+          "GET /v1/wallets",
+          "GET /v1/wallets/{id}",
+          "GET /v1/virtual-accounts/{currency}",
+          "POST /v1/recipients",
+          "GET /v1/recipients",
+          "GET /v1/recipients/{id}",
+          "DELETE /v1/recipients/{id}",
+          "GET /v1/quotes/payment-options",
+          "POST /v1/quotes",
+          "GET /v1/quotes",
+          "GET /v1/quotes/{id}",
+          "POST /v1/transfers",
+          "GET /v1/transfers/{id}",
+          "GET /v1/transactions",
+          "GET /v1/transactions/{id}"
         ]
       }
     ]
