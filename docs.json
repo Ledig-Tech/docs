@@ -1,13 +1,18 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Ledig",
+  "description": "Developer documentation for Ledig's liquidity, settlement and wallet APIs.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#4361EE",
+    "light": "#4361EE",
+    "dark": "#8DA1FF"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
   "navigation": {
     "tabs": [
       {
@@ -17,32 +22,16 @@
             "group": "Getting started",
             "pages": [
               "index",
+              "introduction",
               "quickstart",
-              "development"
+              "auth/authentication",
+              "errors/errors-and-troubleshooting"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Events",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "hooks/webhooks"
             ]
           }
         ]
@@ -51,72 +40,83 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
               "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    ]
   },
   "navbar": {
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:admin@ledig.io"
+      },
+      {
+        "label": "Website",
+        "href": "https://www.ledig.io"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Request access",
+      "href": "https://www.ledig.io/contact"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "cursor",
+      "vscode"
+    ]
   },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+  "redirects": [
+    {
+      "source": "/endpoints/endpoints-guide",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/base-urls",
+      "destination": "/introduction"
+    },
+    {
+      "source": "/api-reference/authentication",
+      "destination": "/auth/authentication"
+    },
+    {
+      "source": "/api-reference/utility",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/rates-and-instant-liquidity",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/crypto-wallets",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/fiat-wallets",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/settlement",
+      "destination": "/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/sandbox-testing",
+      "destination": "/introduction"
+    },
+    {
+      "source": "/api-reference/models",
+      "destination": "/api-reference/introduction"
     }
-  }
+  ]
 }

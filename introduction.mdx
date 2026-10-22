@@ -1,0 +1,46 @@
+---
+title: "Introduction"
+description: "What Ledig does, how the API is organised and which environment to use."
+---
+
+## What Ledig does
+
+Ledig provides business-facing infrastructure for moving between stablecoins and local fiat. The platform covers the full path:
+
+```text
+Collection -> Conversion -> Settlement
+```
+
+- **Collection** receives funds through fiat funding accounts and crypto deposit wallets.
+- **Conversion** prices and executes a quote between a source and a destination currency.
+- **Settlement** sends the destination amount to a saved recipient.
+
+Balances are held in Ledig's ledger, not in a provider account. Every movement is recorded as ledger entries, and every state change is scoped to your business and profile.
+
+## Who the API is for
+
+The machine API is for authenticated business integrations. Every request is signed with an API key, scoped to a business, and checked against the products enabled for that business. It is not a replacement for the dashboard, which remains the place to manage users, keys and settings.
+
+## Get access
+
+1. Request an account on [ledig.io](https://www.ledig.io/contact).
+2. Complete onboarding for your business.
+3. Create an API key in the dashboard under **Settings**.
+4. Read [Authentication](/auth/authentication) and sign your first request.
+
+A business can hold up to ten active API keys. Creating a key returns its secret once; store it securely and never ship it in browser code.
+
+## Environments
+
+| Environment | Base URL | Status |
+| --- | --- | --- |
+| Sandbox | `https://api-staging.ledig.io` | Available |
+| Production | Not yet published | Not available |
+
+The sandbox is the only public environment today. It runs the same API Runtime as the platform and is safe for integration testing, but it is not production: data can be reset and limits apply. Production credentials and a production base URL will be announced here before they are issued.
+
+## API reference status
+
+The endpoint reference is being finalised as a generated, validated OpenAPI document. It will be published in the **API reference** tab once the public contract is final.
+
+Until then, contact [admin@ledig.io](mailto:admin@ledig.io) for the current contract, access and integration support. Do not build against routes or response fields from older documentation; they describe a different platform.

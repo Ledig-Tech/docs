@@ -1,0 +1,187 @@
+---
+title: "Authentication"
+description: "Sign every request with an API key and HMAC-SHA256."
+---
+
+Every request except `GET /v1/health` must be signed with a business API key. Ledig verifies the signature before it reads the request body or touches a service.
+
+## Credentials
+
+An API key has two parts:
+
+| Part | Header | Notes |
+| --- | --- | --- |
+| API key | `x-ledig-key` | Public identifier. Safe to store in configuration. |
+| Secret | not sent | Used to sign requests. Shown once when the key is created or rotated. |
+
+Dashboard sessions are a separate credential used by the dashboard. The machine API uses API keys. Send exactly one credential scheme per request: an API key, or a dashboard session, never both.
+
+## Key lifecycle
+
+- A business can hold up to **10 active, unexpired keys**.
+- A key can expire after **up to six months**.
+- Creating a key returns the API key and its secret **once**.
+- Rotating a key keeps the API key and returns a **new secret once**. The old secret stops working immediately.
+- Revoking a key takes effect immediately.
+- API keys cannot call key management, dashboard authentication, signup, onboarding, internal admin or provider webhook routes.
+
+Store the secret in a server-side secret manager. Never put it in browser code, a mobile app, a repository or a log.
+
+## Required headers
+
+| Header | Value |
+| --- | --- |
+| `x-ledig-key` | Your API key |
+| `x-ledig-timestamp` | Current Unix time in **seconds** |
+| `x-ledig-signature` | `v1=` followed by the base64 HMAC-SHA256 signature |
+
+## Canonical payload
+
+Build the payload exactly like this:
+
+```text
+{timestamp}.{METHOD}.{pathWithQuery}.{rawBody}
+```
+
+- `timestamp` is the value you send in `x-ledig-timestamp`.
+- `METHOD` is uppercase: `GET`, `POST`, `DELETE`.
+- `pathWithQuery` starts at `/` and includes the query string, for example `/v1/balances` or `/v1/transactions?limit=20`.
+- `rawBody` is the exact request body you send. For `GET` and `HEAD`, use an empty string.
+
+Then:
+
+```text
+signature = base64(HMAC-SHA256(secret, payload))
+x-ledig-signature = "v1=" + signature
+```
+
+The signature covers the literal body. If you serialize JSON, sign the same string you put on the wire; re-serializing with different whitespace or key order changes the signature.
+
+Timestamps must be within **300 seconds** of server time. Use seconds, not milliseconds.
+
+## Examples
+
+<CodeGroup>
+```js Node.js
+import { createHmac } from "node:crypto";
+
+const apiKey = process.env.LEDIG_API_KEY;
+const secret = process.env.LEDIG_API_SECRET;
+
+function sign(method, path, body = "") {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const payload = `${timestamp}.${method.toUpperCase()}.${path}.${body}`;
+  const signature = `v1=${createHmac("sha256", secret).update(payload).digest("base64")}`;
+  return { timestamp, signature };
+}
+
+const path = "/v1/balances";
+const { timestamp, signature } = sign("GET", path);
+
+const response = await fetch(`https://api-staging.ledig.io${path}`, {
+  headers: {
+    "x-ledig-key": apiKey,
+    "x-ledig-timestamp": timestamp,
+    "x-ledig-signature": signature,
+  },
+});
+
+console.log(await response.json());
+```
+
+```python Python
+import base64
+import hashlib
+import hmac
+import os
+import time
+import urllib.request
+
+api_key = os.environ["LEDIG_API_KEY"]
+secret = os.environ["LEDIG_API_SECRET"]
+
+def sign(method, path, body=""):
+    timestamp = str(int(time.time()))
+    payload = f"{timestamp}.{method.upper()}.{path}.{body}"
+    digest = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest()
+    return timestamp, "v1=" + base64.b64encode(digest).decode()
+
+path = "/v1/balances"
+timestamp, signature = sign("GET", path)
+
+request = urllib.request.Request(
+    f"https://api-staging.ledig.io{path}",
+    headers={
+        "x-ledig-key": api_key,
+        "x-ledig-timestamp": timestamp,
+        "x-ledig-signature": signature,
+    },
+)
+
+with urllib.request.urlopen(request) as response:
+    print(response.read().decode())
+```
+
+```bash cURL
+timestamp=$(date +%s)
+method=GET
+path="/v1/balances"
+body=""
+payload="${timestamp}.${method}.${path}.${body}"
+signature="v1=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$LEDIG_API_SECRET" -binary | base64)"
+
+curl "https://api-staging.ledig.io${path}" \
+  -H "x-ledig-key: $LEDIG_API_KEY" \
+  -H "x-ledig-timestamp: $timestamp" \
+  -H "x-ledig-signature: $signature"
+```
+</CodeGroup>
+
+## Signing a body
+
+For `POST` and `DELETE` requests with a body, sign the exact string you send:
+
+```js
+const body = JSON.stringify({
+  sourceCurrency: "USDT",
+  destinationCurrency: "NGN",
+  sourceAmount: "100",
+});
+
+const { timestamp, signature } = sign("POST", "/v1/quotes", body);
+
+await fetch("https://api-staging.ledig.io/v1/quotes", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-ledig-key": apiKey,
+    "x-ledig-timestamp": timestamp,
+    "x-ledig-signature": signature,
+  },
+  body,
+});
+```
+
+## Permissions
+
+Each API key has one permission type:
+
+- **Full access** (`api:*`) can call every operation the business is entitled to.
+- **Read only** (`api:read`) can call read operations only.
+- **Custom** contains the permissions you select. A request whose operation needs a permission the key does not hold returns `403`.
+
+Business product access is checked separately. A key with the right permission still returns `403` if the product is not enabled for the business.
+
+The exact scope for each operation is listed in the API reference.
+
+## Common failures
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| `401` | `AUTH_FAILED` | Missing header, stale timestamp, bad signature, unknown or revoked key, inactive business |
+| `403` | `MISSING_SCOPE` | Key does not hold the scope the operation requires |
+| `403` | `SERVICE_NOT_INCLUDED` | Product is not enabled for the business |
+| `403` | `FORBIDDEN` | Requested business or profile is outside the credential's scope |
+| `400` | `INVALID_JSON` | Body is not valid JSON |
+
+If a signature fails, log the exact payload string you signed. Do not log the secret or the signature value. See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for the response envelope and retry rules.

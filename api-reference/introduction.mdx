@@ -1,33 +1,32 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API reference"
+description: "The machine-readable contract is being finalised."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+<Info>
+  The endpoint reference is not published yet. The public OpenAPI contract is being finalised and will appear in this tab, generated from the runtime contract and validated in CI.
+</Info>
 
-## Welcome
+## What will be published
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+The reference will cover the operations available to authenticated business integrations:
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+- supported currencies and networks
+- indicative rates
+- ledger balances
+- fiat funding accounts
+- crypto deposit wallets
+- recipients
+- payment options and quotes
+- transfers
+- transaction history
 
-## Authentication
+Each operation will list its method, path, permission, request schema, response schema and errors.
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+## Until then
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+- Base URL: `https://api-staging.ledig.io`
+- Authentication: [HMAC signing with an API key](/auth/authentication)
+- Errors: [response envelope and codes](/errors/errors-and-troubleshooting)
+
+Contact [admin@ledig.io](mailto:admin@ledig.io) for the current contract and a guided sandbox walkthrough. Do not build against older endpoint documentation; it describes a different platform.
