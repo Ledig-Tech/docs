@@ -9,11 +9,11 @@ A recipient is a saved payout destination: a bank account, a mobile-money accoun
 
 `type` selects the requirement. `fields` carries the values for that corridor.
 
-| `type` | Currency | Country | Required fields | Optional fields |
-| --- | --- | --- | --- | --- |
-| `ngn_bank_transfer` | NGN | NG | `accountName`, `accountNumber` (10 digits), `bankCode`, `bankName`, `currency`, `countryCode` | — |
-| `brl_bank_transfer` | BRL | BR | `accountIdentifier`, `institutionIdentifier` | `name`, `pixKey` |
-| `crypto_address` | USDT, USDC, BTC, ETH | — | `network`, `address`, `accountName` | `memo` |
+| `type` | Use for | Required fields | Optional |
+| --- | --- | --- | --- |
+| `ngn_bank_transfer` | NGN bank accounts in Nigeria | `accountName`, `accountNumber` (10 digits), `bankCode`, `bankName`, `currency`, `countryCode` | — |
+| `brl_bank_transfer` | BRL bank accounts in Brazil | `accountIdentifier`, `institutionIdentifier` | `name`, `pixKey` |
+| `crypto_address` | USDT, USDC, BTC or ETH | `network`, `address`, `accountName` | `memo` |
 
 The top-level `currency` and `country` select the requirement. For a crypto destination the network selects the route; `country` is still required by the schema but does not select the requirement.
 
