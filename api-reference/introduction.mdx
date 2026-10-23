@@ -1,33 +1,81 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API reference"
+description: "The customer operations available to authenticated business integrations."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+<Info>
+  This reference is generated from the Ledig runtime contract. It is a preview: response schemas are still being finalised, and only the operations listed here are public.
+</Info>
 
-## Welcome
+## Base URL
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+| Environment | Base URL |
+| --- | --- |
+| Sandbox | `https://api-staging.ledig.io` |
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+Production credentials and a production base URL are not yet published.
 
-## Authentication
+## How to read an endpoint
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Every endpoint page has the same layout:
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+| Section | What it tells you |
+| --- | --- |
+| Method and path | The operation to call, for example `GET /v1/balances` |
+| Required scope | The permission your API key must hold. A key without it returns `403 MISSING_SCOPE` |
+| Authorizations | The three HMAC headers every signed request carries |
+| Parameters and request body | Accepted fields, with required fields marked |
+| Response | The success schema and an example. Amounts are decimal strings |
+| Errors | The status codes the operation can return |
+
+The playground sends requests to the sandbox. It does not sign requests for you: compute `x-ledig-timestamp` and `x-ledig-signature` as described in [Authentication](/auth/authentication), then paste them into the playground.
+
+## Recommended flow
+
+<Steps>
+  <Step title="Discover currencies">
+    `GET /v1/currencies` lists currency codes, precision and crypto networks. `GET /v1/rates` returns indicative rates.
+  </Step>
+  <Step title="Read balances">
+    `GET /v1/balances` shows what the profile can spend. `GET /v1/balances/{currency}` returns one currency and creates a zero balance if the currency is new.
+  </Step>
+  <Step title="Set up funding">
+    `GET /v1/virtual-accounts/{currency}` returns fiat receiving instructions. `POST /v1/wallets` issues a crypto deposit address.
+  </Step>
+  <Step title="Add a destination">
+    Create a [recipient](/guides/recipients), then wait for its `reviewStatus` to become `approved`.
+  </Step>
+  <Step title="Price the payout">
+    `GET /v1/quotes/payment-options` returns the payout methods, fees and limits. `POST /v1/quotes` fixes the rate, destination amount and expiry.
+  </Step>
+  <Step title="Execute and track">
+    `POST /v1/transfers` consumes the quote. Follow it with `GET /v1/transfers/{id}` and reconcile with [transactions](/guides/transactions).
+  </Step>
+</Steps>
+
+## What is public
+
+This reference covers customer operations only:
+
+- currencies, rates and balances
+- fiat funding accounts and crypto deposit wallets
+- recipients
+- payment options, quotes and transfers
+- transaction history
+
+Dashboard, onboarding, API-key management and staff endpoints are not part of the public machine API and do not appear here.
+
+## Errors
+
+Every error uses the shared envelope `{ "status": "error", "message": string, "code": string }`. See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for codes, limits and retry rules.
+
+## Guides
+
+- [Balances](/guides/balances)
+- [Funding](/guides/funding)
+- [Recipients](/guides/recipients)
+- [Quotes](/guides/quotes)
+- [Transfers](/guides/transfers)
+- [Transactions](/guides/transactions)
+- [Pagination](/guides/pagination)
+- [Idempotency](/guides/idempotency)

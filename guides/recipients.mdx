@@ -1,0 +1,174 @@
+---
+title: "Recipients"
+description: "Register a payout destination for NGN, BRL or a crypto network."
+---
+
+A recipient is a saved payout destination: a bank account, a mobile-money account or a crypto address. Recipients are owned by the profile that created them. Once approved, a recipient can be used in a quote's `payOut`.
+
+## Destination requirements
+
+`type` selects the requirement. `fields` carries the values for that corridor.
+
+| `type` | Use for | Required fields | Optional |
+| --- | --- | --- | --- |
+| `ngn_bank_transfer` | NGN bank accounts in Nigeria | `accountName`, `accountNumber` (10 digits), `bankCode`, `bankName`, `currency`, `countryCode` | — |
+| `brl_bank_transfer` | BRL bank accounts in Brazil | `accountIdentifier`, `institutionIdentifier` | `name`, `pixKey` |
+| `crypto_address` | USDT, USDC, BTC or ETH | `network`, `address`, `accountName` | `memo` |
+
+The top-level `currency` and `country` select the requirement. For a crypto destination the network selects the route; `country` is still required by the schema but does not select the requirement.
+
+All field values are strings. The `fields` array is the request shape; the response returns the saved destination.
+
+## NGN bank transfer
+
+```http
+POST /v1/recipients
+Content-Type: application/json
+```
+
+```json
+{
+  "type": "ngn_bank_transfer",
+  "currency": "NGN",
+  "country": "NG",
+  "fields": [
+    { "name": "accountName", "value": "Example Trading Ltd" },
+    { "name": "accountNumber", "value": "0123456789" },
+    { "name": "bankCode", "value": "000000" },
+    { "name": "bankName", "value": "Example Bank" },
+    { "name": "currency", "value": "NGN" },
+    { "name": "countryCode", "value": "NG" }
+  ]
+}
+```
+
+`accountNumber` must be 10 digits. `bankCode` identifies the Nigerian bank.
+
+## BRL bank transfer
+
+```json
+{
+  "type": "brl_bank_transfer",
+  "currency": "BRL",
+  "country": "BR",
+  "fields": [
+    { "name": "accountIdentifier", "value": "00000000-0" },
+    { "name": "institutionIdentifier", "value": "000" }
+  ]
+}
+```
+
+Add `name` and `pixKey` when the destination uses a Pix key or a named account.
+
+## Crypto destinations
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "USDT",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "TRC20" },
+    { "name": "address", "value": "<your TRON address>" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "USDC",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "ERC20" },
+    { "name": "address", "value": "0x1111111111111111111111111111111111111111" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "BTC",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "BTC" },
+    { "name": "address", "value": "<your Bitcoin address>" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+| Network | Accepted values |
+| --- | --- |
+| Tron | `TRC20` or `TRON` |
+| EVM | `ERC20`, `ETH` or `ETHEREUM` |
+| Bitcoin | `BTC` |
+
+TRON and EVM addresses are format-checked when you submit them. A valid format does not prove ownership. Add `memo` when the destination or network requires one.
+
+## Adding is not approval
+
+A new recipient starts in `reviewStatus: pending`. It cannot be used for a payout until it is approved. When automated screening is enabled, a destination that passes every required check may be approved without manual review.
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "rcp_example",
+    "type": "ngn_bank_transfer",
+    "currency": "NGN",
+    "country": "NG",
+    "reviewStatus": "pending",
+    "active": true,
+    "createdAt": "2026-10-22T09:00:00.000Z"
+  }
+}
+```
+
+The response also contains the destination details you supplied.
+
+| Review status | Meaning |
+| --- | --- |
+| `pending` | Submitted and awaiting review |
+| `approved` | Usable for payouts |
+| `rejected` | Not usable |
+| `revoked` | Approval withdrawn |
+
+Approval applies to the exact destination details you submitted. A changed bank account number or crypto address is not covered by the earlier approval.
+
+## Manage recipients
+
+| Operation | Path |
+| --- | --- |
+| Create | `POST /v1/recipients` |
+| List | `GET /v1/recipients` |
+| Read | `GET /v1/recipients/{id}` |
+| Delete | `DELETE /v1/recipients/{id}` |
+
+Lists use cursor pagination. See [Pagination](/guides/pagination).
+
+A deleted recipient can no longer be used. Deleting does not remove the history of payouts already sent to it.
+
+## Use a recipient in a payout
+
+Pass the approved recipient in the quote's `payOut`:
+
+```json
+{
+  "sourceCurrency": "USDT",
+  "destinationCurrency": "NGN",
+  "sourceAmount": "100",
+  "payOut": {
+    "type": "fiat",
+    "recipientId": "rcp_example",
+    "paymentMethodId": "pm_example"
+  }
+}
+```
+
+For a crypto payout, set `payOut.type` to `crypto` and include the network in the payment option.
+
+See [Quotes](/guides/quotes) for the payout fields and [Transfers](/guides/transfers) for execution.

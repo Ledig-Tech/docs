@@ -1,0 +1,35 @@
+---
+title: "Webhooks"
+description: "Outbound webhook delivery is not available yet. Use polling until it is announced."
+---
+
+<Warning>
+  Ledig does not currently deliver outbound webhooks to customers. No event names, payloads or retry behaviour are published, because the delivery system is still being built and any list would be inaccurate.
+</Warning>
+
+## Use polling for now
+
+Every state change is available through the read API. Poll the resource you care about:
+
+| What you are tracking | Read |
+| --- | --- |
+| Transfer or payout progress | `GET /v1/transfers/{id}` |
+| Transaction history | `GET /v1/transactions` |
+| Account and wallet state | `GET /v1/balances`, `GET /v1/wallets` |
+
+Poll with a bounded interval and back off on `429` or `5xx`. Use the cursor returned in `pagination` to walk history rather than re-reading the first page.
+
+## What will be published here
+
+When delivery is available, this page will document:
+
+- how to register and verify an endpoint
+- signature verification and key rotation
+- the event catalogue with exact payloads
+- delivery IDs, retries, ordering and replay
+
+Do not implement a webhook receiver against guessed field names. Event payloads will be versioned and documented before they are sent.
+
+## Early access
+
+If you need event delivery before the public release, contact [admin@ledig.io](mailto:admin@ledig.io) and describe the events and volume you need.

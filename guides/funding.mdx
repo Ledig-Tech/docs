@@ -1,0 +1,78 @@
+---
+title: "Funding"
+description: "Get fiat funding instructions and create crypto deposit wallets."
+---
+
+## Fiat funding accounts
+
+`GET /v1/virtual-accounts/{currency}` returns the bank account for receiving fiat in that currency:
+
+```http
+GET /v1/virtual-accounts/NGN
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "vis_example",
+    "currencyCode": "NGN",
+    "accountName": "Example Business",
+    "accountNumber": "0123456789",
+    "bankName": "Example Bank",
+    "bankCode": "000000",
+    "status": "active"
+  }
+}
+```
+
+The route is **get-or-create**. If the profile already has an active account for the currency, it returns that account. If not, it provisions one and returns the new details.
+
+- A profile holds one active account per currency.
+- Responses are `Cache-Control: no-store` because funding instructions can change. Fetch them when you need them; do not cache them in your UI or logs.
+- If a previous issuance is still awaiting provider reconciliation, the route returns `409 CONFLICT` instead of creating a second account. Retry after the pending issuance resolves.
+- Use the returned account number for bank transfers. Do not expose another business's account details.
+
+## Crypto deposit wallets
+
+Create a wallet with `POST /v1/wallets`. The `Idempotency-Key` header is **required**:
+
+```http
+POST /v1/wallets
+Idempotency-Key: 8f14e45f-ea3b-4c1a-9d5e-2f7c1a6b9d10
+Content-Type: application/json
+```
+
+```json
+{
+  "nickname": "Treasury",
+  "coin": "USDT",
+  "network": "TRC20",
+  "memo": "optional"
+}
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "wal_example",
+    "address": "TExampleAddress",
+    "memo": "",
+    "nickname": "Treasury",
+    "coin": "USDT",
+    "network": "TRC20",
+    "createdAt": "2026-10-22T09:00:00.000Z"
+  }
+}
+```
+
+- Reuse the same `Idempotency-Key` when retrying the same request. A different body with the same key returns `409 IDEMPOTENCY_CONFLICT`.
+- If the response includes a memo or tag, send it with every deposit to that address. A deposit without the required memo may not be credited.
+- `GET /v1/wallets` lists the profile's wallets. `GET /v1/wallets/{id}` returns one.
+- Wallet creation can wait on provider issuance. A conflict that says issuance is awaiting reconciliation means the wallet may already exist; retry later instead of creating another one.
+- A wallet has an address, not a separate balance. Balances stay at profile and currency level. See [Balances](/guides/balances).
+
+## Next
+
+Once funds are available, request a quote to convert or pay out. See [Quotes](/guides/quotes).

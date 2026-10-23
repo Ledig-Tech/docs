@@ -1,0 +1,92 @@
+---
+title: "Errors and troubleshooting"
+description: "Response envelope, error codes, limits and retry rules."
+---
+
+## Response envelope
+
+Every response uses the same envelope. Errors look like this:
+
+```json
+{
+  "status": "error",
+  "message": "Missing required scope.",
+  "code": "MISSING_SCOPE"
+}
+```
+
+Successful responses use the same shape:
+
+```json
+{
+  "status": "success",
+  "data": {}
+}
+```
+
+List operations add `pagination.nextCursor` and `pagination.previousCursor`. A successful operation with no payload returns `status` and `message` only.
+
+Error messages are safe to show to an operator. They never contain stack traces, SQL, provider payloads or secrets.
+
+## Error codes
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `BAD_REQUEST` | The request is invalid |
+| `400` | `INVALID_JSON` | The body is not valid JSON |
+| `401` | `AUTH_FAILED` | Authentication failed. See [Authentication](/auth/authentication) |
+| `403` | `MISSING_SCOPE` | The key does not hold the required permission |
+| `403` | `SERVICE_NOT_INCLUDED` | The product is not enabled for the business |
+| `403` | `FORBIDDEN` | The business or profile is outside the credential's scope |
+| `404` | `NOT_FOUND` | The resource does not exist or is not visible to this profile |
+| `409` | `CONFLICT` | The request conflicts with current state |
+| `409` | `IDEMPOTENCY_CONFLICT` | The idempotency key was reused with a different request |
+| `409` | `INSUFFICIENT_BALANCE` | The source balance cannot cover the operation |
+| `413` | `PAYLOAD_TOO_LARGE` | The request body is larger than the limit |
+| `414` | `URI_TOO_LONG` | The request URL is larger than the limit |
+| `423` | `COMPLIANCE_REVIEW_REQUIRED` | The operation is held for compliance review |
+| `429` | `RATE_LIMITED` | A request limit was exceeded |
+| `500` | `INTERNAL_ERROR` | An unexpected server error |
+| `501` | `NOT_IMPLEMENTED` | The operation is not available |
+| `503` | `PROVIDER_UNAVAILABLE` | A dependency is temporarily unavailable |
+
+Codes are additive. Handle unknown codes as an error with the returned status.
+
+## Request IDs
+
+Error responses include an `x-request-id` header. Send your own `x-request-id` (8–128 characters, `A-Z a-z 0-9 . _ : -`) to correlate a request with your logs; a valid value is preserved.
+
+Include the request ID when you contact support. Do not include the API secret or the full signature.
+
+## Limits
+
+Current limits per credential:
+
+| Limit | Value |
+| --- | --- |
+| Requests per API key | 120 per minute |
+| Write requests per API key | 30 per minute |
+| Requests per business | 600 per minute |
+| Write requests per business | 120 per minute |
+| Requests per business per day | 50,000 |
+| JSON request body | 256 KB |
+| Request URL | 8,192 characters |
+
+A `429` response is authoritative even if your client believes it is under a limit. Limits can change; the response headers and status take precedence over this table.
+
+## Retries
+
+- **`429`** — wait for the number of seconds in `Retry-After`, then retry.
+- **`5xx`** — retry with exponential backoff and jitter.
+- **`4xx`** — do not retry. Fix the request or the credential.
+- **Writes** — where an operation accepts `Idempotency-Key`, reuse the same value when retrying the same request. Never retry a write with a new key.
+- **Network failures** — treat them like a `5xx`, and reuse the same idempotency key.
+
+## Debugging checklist
+
+1. Confirm you are calling `https://api-staging.ledig.io`.
+2. Confirm the timestamp is current Unix time in seconds.
+3. Confirm you signed the exact body string you sent, including whitespace.
+4. Confirm the path includes the query string and starts with `/v1/`.
+5. Confirm the key holds the permission the operation requires.
+6. Contact [admin@ledig.io](mailto:admin@ledig.io) with the `x-request-id` and the request shape, never the secret.

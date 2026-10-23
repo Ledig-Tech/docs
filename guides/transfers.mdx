@@ -1,0 +1,75 @@
+---
+title: "Transfers"
+description: "Execute a quote and follow its status."
+---
+
+A transfer consumes a [quote](/guides/quotes) and moves the money. The quote supplies the amounts, rate and payout instruction; the transfer owns execution and state.
+
+## Create a transfer
+
+```http
+POST /v1/transfers
+Content-Type: application/json
+```
+
+```json
+{
+  "quoteId": "qte_example",
+  "reference": "order-1042"
+}
+```
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `quoteId` | Yes | A pending, unexpired quote owned by the profile |
+| `reference` | No | Your reference, 1–64 characters |
+
+Before it accepts the transfer, Ledig checks that the quote is still valid and that the source balance covers the source amount. The quote is consumed in the same transaction that creates the transfer.
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "trf_example",
+    "quoteId": "qte_example",
+    "reference": "order-1042",
+    "sourceCurrency": "USDT",
+    "destinationCurrency": "NGN",
+    "sourceAmount": "100",
+    "destinationAmount": "159000",
+    "rate": "1590",
+    "status": "pending",
+    "failureReason": null,
+    "createdAt": "2026-10-22T09:00:00.000Z",
+    "updatedAt": "2026-10-22T09:00:00.000Z"
+  }
+}
+```
+
+## Status
+
+| Status | Meaning |
+| --- | --- |
+| `pending` | Accepted and waiting for the next stage |
+| `processing` | Conversion or payout is in progress |
+| `completed` | The destination amount was settled |
+| `failed` | Execution stopped; `failureReason` explains why |
+| `reversed` | The payout was returned after execution |
+
+A payout can also carry an approval state: `pending`, `approved`, `rejected`, `expired` or `executing`. When approval is required, the transfer waits for the payout review instead of failing immediately. `failureReason` and the approval reason are written for the customer; they never contain staff investigation notes.
+
+## Read a transfer
+
+```http
+GET /v1/transfers/{id}
+```
+
+Poll this route to follow a transfer. Back off on `429` and `5xx`; do not poll faster than once per second per transfer.
+
+There is **no list route** for transfers. Use [Transactions](/guides/transactions) for history.
+
+## Retries
+
+A transfer has no idempotency key, and its quote can be consumed only once. If the create call times out after you sent it, do not submit a new transfer with the same quote and expect a replay. Contact [admin@ledig.io](mailto:admin@ledig.io) with the quote ID, reference and timestamp so the transfer can be located before you retry.
+
+A request that reuses a consumed quote is rejected. Create a new quote only when you have confirmed that no transfer was created.

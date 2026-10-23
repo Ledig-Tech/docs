@@ -1,0 +1,42 @@
+---
+title: "Idempotency"
+description: "Safely retry writes without creating duplicates."
+---
+
+Network failures happen after the server has already accepted a request. Idempotency lets you retry without creating a second wallet, transfer or payout.
+
+## The header
+
+Where an operation supports it, send an `Idempotency-Key` header:
+
+```http
+POST /v1/wallets
+Idempotency-Key: 8f14e45f-ea3b-4c1a-9d5e-2f7c1a6b9d10
+```
+
+Use a new value for each distinct request. A UUID is a good choice. Store it with the request so a retry can reuse it.
+
+## Behaviour
+
+- Repeating the same request with the same key returns the original result instead of creating a second resource.
+- Reusing a key with a different body returns `409 IDEMPOTENCY_CONFLICT`.
+- Keys are scoped to the profile that made the request.
+- A key is not a substitute for authentication or permission checks.
+
+`POST /v1/wallets` requires the header. Other operations state whether they support it in the API reference.
+
+## Operations without a key
+
+Some money-moving operations use different protections:
+
+- **Quotes** are priced, not executed. A retried create makes a second quote; use the one you received.
+- **Transfers** consume their quote once. A retried create cannot execute the same quote twice, but it also cannot replay the original response. If a transfer create times out, contact [admin@ledig.io](mailto:admin@ledig.io) with the quote ID before retrying.
+
+## Retry sequence
+
+1. Send the request with a fresh `Idempotency-Key`.
+2. On a network failure or `5xx`, retry with the **same** key.
+3. On `409 IDEMPOTENCY_CONFLICT`, stop: the key was used with a different request.
+4. On `4xx`, fix the request before retrying with a new key.
+
+See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for retry timing and limits.
