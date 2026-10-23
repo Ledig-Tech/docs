@@ -1,11 +1,25 @@
 ---
 title: "Recipients"
-description: "Register and manage payout destinations."
+description: "Register a payout destination for NGN, BRL or a crypto network."
 ---
 
-A recipient is a saved destination for a payout: a bank account, a mobile-money account or a crypto address. Recipients are owned by the profile that created them.
+A recipient is a saved payout destination: a bank account, a mobile-money account or a crypto address. Recipients are owned by the profile that created them. Once approved, a recipient can be used in a quote's `payOut`.
 
-## Create a recipient
+## Destination requirements
+
+`type` selects the requirement. `fields` carries the values for that corridor.
+
+| `type` | Currency | Country | Required fields | Optional fields |
+| --- | --- | --- | --- | --- |
+| `ngn_bank_transfer` | NGN | NG | `accountName`, `accountNumber` (10 digits), `bankCode`, `bankName`, `currency`, `countryCode` | — |
+| `brl_bank_transfer` | BRL | BR | `accountIdentifier`, `institutionIdentifier` | `name`, `pixKey` |
+| `crypto_address` | USDT, USDC, BTC, ETH | — | `network`, `address`, `accountName` | `memo` |
+
+The top-level `currency` and `country` select the requirement. For a crypto destination the network selects the route; `country` is still required by the schema but does not select the requirement.
+
+All field values are strings. The `fields` array is the request shape; the response returns the saved destination.
+
+## NGN bank transfer
 
 ```http
 POST /v1/recipients
@@ -28,16 +42,72 @@ Content-Type: application/json
 }
 ```
 
-`type` selects the destination requirement. The requirement defines the required `fields` for that corridor. For a crypto destination, use `type: "crypto_address"` with `network`, `address` and `accountName`.
+`accountNumber` must be 10 digits. `bankCode` identifies the Nigerian bank.
 
-Optional inputs:
+## BRL bank transfer
 
-| Field | Purpose |
+```json
+{
+  "type": "brl_bank_transfer",
+  "currency": "BRL",
+  "country": "BR",
+  "fields": [
+    { "name": "accountIdentifier", "value": "00000000-0" },
+    { "name": "institutionIdentifier", "value": "000" }
+  ]
+}
+```
+
+Add `name` and `pixKey` when the destination uses a Pix key or a named account.
+
+## Crypto destinations
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "USDT",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "TRC20" },
+    { "name": "address", "value": "<your TRON address>" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "USDC",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "ERC20" },
+    { "name": "address", "value": "0x1111111111111111111111111111111111111111" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+```json
+{
+  "type": "crypto_address",
+  "currency": "BTC",
+  "country": "NG",
+  "fields": [
+    { "name": "network", "value": "BTC" },
+    { "name": "address", "value": "<your Bitcoin address>" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+| Network | Accepted values |
 | --- | --- |
-| `legalEntityType` | Legal form of the destination account holder |
-| `oneTime` | Mark a destination that should be used once |
+| Tron | `TRC20` or `TRON` |
+| EVM | `ERC20`, `ETH` or `ETHEREUM` |
+| Bitcoin | `BTC` |
 
-The error names a missing required value. Contact support if you do not have the requirement fields for a corridor.
+TRON and EVM addresses are format-checked when you submit them. A valid format does not prove ownership. Add `memo` when the destination or network requires one.
 
 ## Adding is not approval
 
@@ -98,5 +168,7 @@ Pass the approved recipient in the quote's `payOut`:
   }
 }
 ```
+
+For a crypto payout, set `payOut.type` to `crypto` and include the network in the payment option.
 
 See [Quotes](/guides/quotes) for the payout fields and [Transfers](/guides/transfers) for execution.

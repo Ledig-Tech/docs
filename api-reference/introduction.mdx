@@ -15,11 +15,43 @@ description: "The customer operations available to authenticated business integr
 
 Production credentials and a production base URL are not yet published.
 
-## Authentication
+## How to read an endpoint
 
-Every operation except `GET /v1/health` requires a business API key and an HMAC-SHA256 signature. Each operation lists its required scope under **Required scope**.
+Every endpoint page has the same layout:
 
-Read [Authentication](/auth/authentication) for the exact payload, required headers and working examples.
+| Section | What it tells you |
+| --- | --- |
+| Method and path | The operation to call, for example `GET /v1/balances` |
+| Required scope | The permission your API key must hold. A key without it returns `403 MISSING_SCOPE` |
+| Authorizations | The three HMAC headers every signed request carries |
+| Parameters and request body | Accepted fields, with required fields marked |
+| Response | The success schema and an example. Amounts are decimal strings |
+| Errors | The status codes the operation can return |
+
+The playground sends requests to the sandbox. It does not sign requests for you: compute `x-ledig-timestamp` and `x-ledig-signature` as described in [Authentication](/auth/authentication), then paste them into the playground.
+
+## Recommended flow
+
+<Steps>
+  <Step title="Discover currencies">
+    `GET /v1/currencies` lists currency codes, precision and crypto networks. `GET /v1/rates` returns indicative rates.
+  </Step>
+  <Step title="Read balances">
+    `GET /v1/balances` shows what the profile can spend. `GET /v1/balances/{currency}` returns one currency and creates a zero balance if the currency is new.
+  </Step>
+  <Step title="Set up funding">
+    `GET /v1/virtual-accounts/{currency}` returns fiat receiving instructions. `POST /v1/wallets` issues a crypto deposit address.
+  </Step>
+  <Step title="Add a destination">
+    Create a [recipient](/guides/recipients), then wait for its `reviewStatus` to become `approved`.
+  </Step>
+  <Step title="Price the payout">
+    `GET /v1/quotes/payment-options` returns the payout methods, fees and limits. `POST /v1/quotes` fixes the rate, destination amount and expiry.
+  </Step>
+  <Step title="Execute and track">
+    `POST /v1/transfers` consumes the quote. Follow it with `GET /v1/transfers/{id}` and reconcile with [transactions](/guides/transactions).
+  </Step>
+</Steps>
 
 ## What is public
 
@@ -45,3 +77,5 @@ Every error uses the shared envelope `{ "status": "error", "message": string, "c
 - [Quotes](/guides/quotes)
 - [Transfers](/guides/transfers)
 - [Transactions](/guides/transactions)
+- [Pagination](/guides/pagination)
+- [Idempotency](/guides/idempotency)

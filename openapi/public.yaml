@@ -50,7 +50,7 @@ paths:
         - System
       operationId: getHealth
       summary: Runtime health
-      description: Public liveness probe. Does not touch the database or providers.
+      description: Checks that the API is reachable.
       security: []
       responses:
         "200":
@@ -65,12 +65,15 @@ paths:
                   status:
                     type: string
                     const: ok
+      x-mint:
+        content: Checks that the API is reachable. This route is public and does not require a signature. It reports process liveness only; it does not check the database or a provider.
   /v1/currencies:
     get:
       tags:
         - Currencies and rates
       operationId: listCurrencies
       summary: List currencies and networks
+      description: Lists the currencies and crypto networks enabled for the business.
       responses:
         "200":
           description: Business-scoped currency catalog.
@@ -96,17 +99,18 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: view_rates
-      description: "Required scope: `view_rates`."
+      x-mint:
+        content: |-
+          **Required scope:** `view_rates`
+
+          Returns the currencies enabled for the business and, for each crypto currency, the supported networks. Use it to discover currency codes, precision and network names before creating a quote or a recipient. The response is reference data; it does not include balances or rates.
   /v1/rates:
     get:
       tags:
         - Currencies and rates
       operationId: listRates
       summary: List indicative rates
-      description: |-
-        Required scope: `view_rates`.
-
-        Compatibility shape for existing clients. Field names include a trailing space in `Last Updated `. Rates are indicative; create a quote for executable terms and an expiry.
+      description: Returns indicative rates. Create a quote for executable terms.
       responses:
         "200":
           description: Indicative rates.
@@ -132,12 +136,18 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: view_rates
+      x-mint:
+        content: |-
+          **Required scope:** `view_rates`
+
+          Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. This route preserves the legacy field names, including the trailing space in `Last Updated `.
   /v1/balances:
     get:
       tags:
         - Balances
       operationId: listBalances
       summary: List ledger balances
+      description: Reads the profile's balances by currency.
       responses:
         "200":
           description: Balances for the profile.
@@ -161,7 +171,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: balances:read
-      description: "Required scope: `balances:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `balances:read`
+
+          Returns one balance per currency held by the active profile. `available` is free to use; `reserved` is held for an in-flight operation. Amounts are decimal strings. Use `GET /v1/balances/{currency}` when you only need one currency.
   /v1/balances/{currency}:
     parameters:
       - in: path
@@ -175,10 +189,7 @@ paths:
         - Balances
       operationId: getBalance
       summary: Get a single-currency balance
-      description: |-
-        Required scope: `balances:read`.
-
-        Get-or-create; a business always sees a balance for a currency it asks about.
+      description: Reads one currency balance, creating it if it does not exist.
       responses:
         "200":
           description: Balance.
@@ -200,12 +211,18 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: balances:read
+      x-mint:
+        content: |-
+          **Required scope:** `balances:read`
+
+          Returns the balance for one currency. If the profile has never held that currency, the route creates a zero balance and returns it, so it is safe to call before the first deposit. Amounts are decimal strings.
   /v1/wallets:
     post:
       tags:
         - Deposit wallets
       operationId: createWallet
       summary: Create a deposit wallet
+      description: Issues a crypto deposit address for the profile.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -251,12 +268,17 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: wallets:write
-      description: "Required scope: `wallets:write`."
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:write`
+
+          Issues a crypto deposit address for the profile. Send an `Idempotency-Key`; retrying the same request with the same key returns the same wallet, and reusing the key with a different body returns `409`. If the response includes a memo or tag, send it with every deposit. The wallet holds an address, not a separate balance.
     get:
       tags:
         - Deposit wallets
       operationId: listWallets
       summary: List wallets
+      description: Lists the profile's crypto deposit wallets.
       responses:
         "200":
           description: Wallets for the profile.
@@ -280,7 +302,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: wallets:read
-      description: "Required scope: `wallets:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:read`
+
+          Lists the crypto deposit wallets owned by the active profile. The route returns all wallets and is not paginated. Each wallet has an address, coin, network and optional memo.
   /v1/wallets/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -289,10 +315,7 @@ paths:
         - Deposit wallets
       operationId: getWallet
       summary: Get a wallet
-      description: |-
-        Required scope: `wallets:read`.
-
-        Missing, wrong-profile and malformed wallet IDs return 404.
+      description: Reads one crypto deposit wallet.
       responses:
         "200":
           description: Wallet.
@@ -316,6 +339,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: wallets:read
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:read`
+
+          Returns one crypto deposit wallet. A missing wallet, a wallet owned by another profile, or a malformed ID returns `404`.
   /v1/virtual-accounts/{currency}:
     parameters:
       - in: path
@@ -328,10 +356,7 @@ paths:
         - Funding accounts
       operationId: getVirtualAccount
       summary: Get a fiat funding account
-      description: |-
-        Required scope: `fiat_wallet`.
-
-        Compatibility endpoint. Explicit additional issuance and exact account selection use the collection and account-ID routes.
+      description: Returns the fiat receiving account for a currency, creating one if needed.
       responses:
         "200":
           description: Virtual account.
@@ -355,16 +380,18 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: fiat_wallet
+      x-mint:
+        content: |-
+          **Required scope:** `fiat_wallet`
+
+          Returns the profile's active fiat receiving account for a currency, creating one if none exists. Use the account number and bank details for customer deposits. Responses are `Cache-Control: no-store`; fetch them when needed and do not cache them. If a previous issuance is still pending, the route returns `409` instead of creating a second account.
   /v1/recipients:
     post:
       tags:
         - Recipients
       operationId: createRecipient
       summary: Create a recipient
-      description: |-
-        Required scope: `recipient_manage`.
-
-        Crypto recipients validate TRON Base58Check/network bytes and mixed-case EVM EIP-55 before persistence. These checks do not establish ownership. When crypto screening is enabled, pending destinations may be approved automatically after complete passing assessment, approved parent-business KYB and current destination checks. Existing rejection, revocation, blacklist and risk holds remain blocking.
+      description: Saves a payout destination for review.
       requestBody:
         required: true
         content:
@@ -396,11 +423,17 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: recipient_manage
+      x-mint:
+        content: |-
+          **Required scope:** `recipient_manage`
+
+          Saves a payout destination. `type` selects the destination requirement (`ngn_bank_transfer`, `brl_bank_transfer` or `crypto_address`) and `fields` carries the corridor-specific values. A new destination is `pending` and cannot be used until approved. When automated screening is enabled, a destination that passes every check may be approved without manual review. Adding a recipient is not approval.
     get:
       tags:
         - Recipients
       operationId: listRecipients
       summary: List recipients
+      description: Lists the profile's recipients and their review status.
       parameters:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Cursor"
@@ -426,7 +459,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: recipient_read
-      description: "Required scope: `recipient_read`."
+      x-mint:
+        content: |-
+          **Required scope:** `recipient_read`
+
+          Lists the profile's recipients with their review status. Use `limit`, `cursor` and `sort`; the response includes `pagination.nextCursor`.
   /v1/recipients/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -435,6 +472,7 @@ paths:
         - Recipients
       operationId: getRecipient
       summary: Get a recipient
+      description: Reads one recipient and its review status.
       responses:
         "200":
           description: Recipient.
@@ -458,12 +496,17 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: recipient_read
-      description: "Required scope: `recipient_read`."
+      x-mint:
+        content: |-
+          **Required scope:** `recipient_read`
+
+          Returns one recipient, including its current `reviewStatus`. Use it to check whether a destination has been approved before creating a quote that pays out to it.
     delete:
       tags:
         - Recipients
       operationId: deleteRecipient
       summary: Delete a recipient
+      description: Removes a recipient from future payouts.
       responses:
         "200":
           description: Recipient removed.
@@ -487,23 +530,18 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: recipient_manage
-      description: "Required scope: `recipient_manage`."
+      x-mint:
+        content: |-
+          **Required scope:** `recipient_manage`
+
+          Removes a recipient so it can no longer be used for a payout. The operation is a soft delete; the payout history that references the destination is retained. The response returns the deleted recipient.
   /v1/quotes/payment-options:
     get:
       tags:
         - Payment options
       operationId: listQuotePaymentOptions
       summary: List payment options
-      description: |-
-        Required scope: `quotes:read`.
-
-        Returns enabled deposit or withdrawal payment options for the requested
-        currency. When `amount` is supplied, options outside their configured
-        range are excluded. Withdrawal options must also have an eligible
-        routing bucket for that amount. Provider routing is not exposed. Clients
-        submit a selected `paymentMethodIds` value — never the option id — as
-        `payOut.paymentMethodId`. Deposit option discovery is available ahead of
-        deposit quote execution support.
+      description: Lists the payout methods, fees and limits for a currency.
       parameters:
         - in: query
           name: type
@@ -550,12 +588,18 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: quotes:read
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:read`
+
+          Lists the payout or collection methods enabled for a currency, with their fees, limits and stable `paymentMethodIds`. Pass one of those IDs in a quote's `payOut`. Use `type=withdraw` for payouts and `type=deposit` for collection options. Supply `amount` to exclude options whose limits do not cover it.
   /v1/quotes:
     post:
       tags:
         - Quotes
       operationId: createQuote
       summary: Create an executable quote
+      description: Prices a conversion or payout and fixes the terms.
       requestBody:
         required: true
         content:
@@ -587,12 +631,17 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: quotes:write
-      description: "Required scope: `quotes:write`."
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:write`
+
+          Prices a conversion or payout and fixes the rate, destination amount and expiry. Send `sourceAmount`; the server calculates `destinationAmount`. A same-currency quote must include `payOut`. `payIn` with `temporary_bank_account` is reserved and returns `501`. A quote is single-use and is consumed by `POST /v1/transfers`.
     get:
       tags:
         - Quotes
       operationId: listQuotes
       summary: List quotes
+      description: Lists the profile's quotes.
       parameters:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Cursor"
@@ -618,7 +667,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: quotes:read
-      description: "Required scope: `quotes:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:read`
+
+          Lists the profile's quotes, newest first by default. Use `limit`, `cursor` and `sort`; the response includes pagination cursors. Quotes are not filtered by status or currency; read a specific quote by ID.
   /v1/quotes/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -627,6 +680,7 @@ paths:
         - Quotes
       operationId: getQuote
       summary: Get a quote
+      description: Reads one quote and its expiry.
       responses:
         "200":
           description: Quote.
@@ -650,13 +704,18 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: quotes:read
-      description: "Required scope: `quotes:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:read`
+
+          Returns one quote with its amounts, rate, status and `expiresAt`. Use it to confirm the terms before creating a transfer. A quote can be `pending`, `accepted` or `expired`.
   /v1/transfers:
     post:
       tags:
         - Transfers
       operationId: createTransfer
       summary: Create a transfer from a quote
+      description: Executes a quote.
       requestBody:
         required: true
         content:
@@ -697,7 +756,11 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
       x-scope: transfers:write
-      description: "Required scope: `transfers:write`."
+      x-mint:
+        content: |-
+          **Required scope:** `transfers:write`
+
+          Executes a quote. The quote must be pending, unexpired and owned by the profile, and the source balance must cover the amount. The quote is consumed in the same transaction that creates the transfer, so it cannot be used twice. There is no idempotency key on this route; if the create response is lost, contact support with the quote ID before retrying.
   /v1/transfers/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -706,6 +769,7 @@ paths:
         - Transfers
       operationId: getTransfer
       summary: Get a transfer
+      description: Reads one transfer and its current status.
       responses:
         "200":
           description: Transfer.
@@ -729,13 +793,18 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: transfers:read
-      description: "Required scope: `transfers:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `transfers:read`
+
+          Returns one transfer with its current status and a customer-safe `failureReason`. Poll this route to follow execution. A payout may also carry an `approval` state while it waits for review. There is no list route; use transactions for history.
   /v1/transactions:
     get:
       tags:
         - Transactions
       operationId: listTransactions
       summary: List transactions
+      description: Reads the customer transaction history.
       parameters:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Cursor"
@@ -814,7 +883,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: transactions:read
-      description: "Required scope: `transactions:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `transactions:read`
+
+          Returns the profile's customer transaction history. Filter by status, currency, category, type, reference, direction (`isCredit`) or rail (`isFiat`), or use `period`/`from`/`to`. Results are cursor-paginated. Amounts are decimal strings and `isCredit` gives the direction.
   /v1/transactions/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -823,6 +896,7 @@ paths:
         - Transactions
       operationId: getTransaction
       summary: Get a transaction
+      description: Reads one customer transaction.
       responses:
         "200":
           description: Transaction.
@@ -846,7 +920,11 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: transactions:read
-      description: "Required scope: `transactions:read`."
+      x-mint:
+        content: |-
+          **Required scope:** `transactions:read`
+
+          Returns one customer transaction. Use it after a transfer to read the customer-facing record. Ledger references and internal versions are not part of the public contract.
 components:
   schemas:
     Success:
