@@ -563,6 +563,22 @@ paths:
           schema:
             type: string
             pattern: ^(?=.*[1-9])(0|[1-9]\d*)(?:\.\d+)?$
+        - in: query
+          name: chain
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Crypto network for business-aware payout fee discovery.
+        - in: query
+          name: recipientId
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Business-owned recipient for withdrawal option filtering. Not accepted for deposit discovery.
       responses:
         "200":
           description: Eligible deposit or withdrawal payment options.
@@ -621,15 +637,52 @@ paths:
                       data:
                         $ref: "#/components/schemas/Quote"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Invalid request, unsupported amount precision or invalid provider mobile network.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                amountPrecision:
+                  summary: A zero-decimal currency received a non-zero fractional amount.
+                  value:
+                    status: error
+                    code: BAD_REQUEST
+                    message: Amount exceeds the currency's 0-decimal precision.
+                mobileNetwork:
+                  summary: Illustrative accepted values; the actual list comes from the country's provider catalogue.
+                  value:
+                    status: error
+                    code: PROVIDER_NETWORK_INVALID
+                    message: "Mobile-money network is invalid for KE. Accepted values: Mpesa."
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          description: The selected provider conversion route is unavailable. Missing adapters, fresh capacity or required execution policy fail closed; no fallback global route is substituted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: error
+                code: RATE_PROVIDER_CONVERSION_UNAVAILABLE
+                message: Conversion is not available for this route.
         "429":
           $ref: "#/components/responses/RateLimited"
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          description: Required provider data is unavailable or malformed; retry after availability is restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                mobileNetworksUnavailable:
+                  value:
+                    status: error
+                    code: PROVIDER_UNAVAILABLE
+                    message: Flutterwave mobile networks could not be verified.
       x-scope: quotes:write
       x-mint:
         content: |-
@@ -751,10 +804,48 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "422":
+          description: Payout USD admission exceeds the effective transaction or monthly cap. When enforcement is enabled, the quote claim and transfer are rolled back before dispatch. Read GET /v1/balances/summary for current allowance; deterministic cap errors are not provider failures.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayoutUsdLimitExceededError"
+              examples:
+                transactionLimit:
+                  value:
+                    status: error
+                    code: PAYOUT_TRANSACTION_LIMIT_EXCEEDED
+                    message: This payout exceeds the business transaction limit.
+                monthlyLimit:
+                  value:
+                    status: error
+                    code: PAYOUT_MONTHLY_LIMIT_EXCEEDED
+                    message: This payout exceeds the business monthly allowance.
         "429":
           $ref: "#/components/responses/RateLimited"
         "503":
-          $ref: "#/components/responses/ServiceUnavailable"
+          description: A required provider, policy store or indicative rate is unavailable. RATE_AUTHORITATIVE_STORE_UNAVAILABLE means a usable USD admission valuation could not be established; no transfer or quote claim is committed by a failed admission.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: RATE_AUTHORITATIVE_STORE_UNAVAILABLE
+                message: A current indicative USD valuation is unavailable.
       x-scope: transfers:write
       x-mint:
         content: |-
@@ -974,6 +1065,9 @@ components:
             additionalProperties: true
             required:
               - chain
+              - name
+              - addressRegex
+              - status
             properties:
               chain:
                 type: string
@@ -1079,8 +1173,21 @@ components:
       additionalProperties: false
       required:
         - currency
-        - country
         - type
+      allOf:
+        - if:
+            properties:
+              type:
+                const: ledig
+            required:
+              - type
+          else:
+            required:
+              - country
+            properties:
+              country:
+                type: string
+                minLength: 1
       properties:
         currency:
           type: string
@@ -1102,6 +1209,16 @@ components:
                 type: string
         legalEntityType:
           type: string
+          enum:
+            - individual
+            - business
+          description: Required by updated non-ZAR fiat bank/mobile requirements. Individual requires firstName and lastName, with optional middleName; business requires businessName in fields.
+        bankDetailsSource:
+          type: string
+          enum:
+            - directory
+            - manual
+          description: Manual bank entry is accepted only where the requirement advertises it and derives an immutable Ledig-only payout restriction. ZAR is excluded.
         oneTime:
           type: boolean
     Recipient:
@@ -1121,6 +1238,46 @@ components:
           type: string
         type:
           type: string
+        recipientRequirementId:
+          type: string
+        legalEntityType:
+          type: string
+          enum:
+            - individual
+            - business
+        bankDetailsSource:
+          type: string
+          enum:
+            - directory
+            - manual
+        payoutExecutionRestriction:
+          type: string
+          enum:
+            - ledig_only
+          readOnly: true
+          description: Server-derived recipient restriction. The client cannot clear it or select provider execution for this destination.
+        requirement:
+          type:
+            - object
+            - "null"
+          additionalProperties: false
+          description: Owning requirement metadata for this saved destination, including hidden or inactive definitions. Null when unavailable; older deployments may omit it. Empty currencies means no currency restriction. This does not establish recipient approval, provider support or payout eligibility.
+          required:
+            - name
+            - category
+            - type
+            - currencies
+          properties:
+            name:
+              type: string
+            category:
+              type: string
+            type:
+              type: string
+            currencies:
+              type: array
+              items:
+                type: string
         fields:
           type: object
           additionalProperties:
@@ -1170,6 +1327,7 @@ components:
         - minimumAmount
         - maximumAmount
         - supportConversion
+        - invoiceRequired
       properties:
         channel:
           type: string
@@ -1193,6 +1351,38 @@ components:
           type: string
         supportConversion:
           type: boolean
+        executionMode:
+          type: string
+          enum:
+            - provider
+            - ledig
+          description: Withdrawal execution mode. Manual-bank recipients require an eligible ledig option; the backend enforces the saved recipient restriction again at payout admission.
+        invoiceRequired:
+          type: boolean
+          default: false
+          description: Whether all methods in this option require an invoice document. This never makes transferPurpose mandatory.
+        feeQuoteRequired:
+          type: boolean
+          description: True when discovery lacks context or fee pricing cannot price this option yet (currency, payment method or network not configured); obtain a final quote before confirmation.
+        feeQuotes:
+          type: array
+          description: Business-aware per-method discovery; the executable quote remains authoritative.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - paymentMethodId
+              - feeAmount
+              - feeCurrency
+            properties:
+              paymentMethodId:
+                type: string
+              feeAmount:
+                type: string
+              feeCurrency:
+                type: string
+              chain:
+                type: string
     CreateQuoteRequest:
       type: object
       additionalProperties: false
@@ -1214,6 +1404,7 @@ components:
           maxLength: 20
         sourceAmount:
           type: string
+          description: Positive decimal amount within sourceCurrency's configured precision. Excess fractional zeroes are accepted; non-zero excess digits are rejected without rounding. Zero-decimal currencies accept 10 or 10.000 but reject 10.1.
         payIn:
           type: object
           additionalProperties: false
@@ -1236,6 +1427,7 @@ components:
               enum:
                 - fiat
                 - crypto
+                - ledig
             recipientId:
               type: string
             paymentMethodId:
@@ -1248,7 +1440,11 @@ components:
               type: string
               minLength: 1
               maxLength: 100
-              description: Optional transaction purpose. The selected provider validates allowed values and requires it for applicable routes; it is not recipient or sender identity.
+              description: Optional internal Ledig classification. Recommended dropdown values come from GET /v1/quotes/transfer-purposes and include Other. Existing free-text values remain accepted. Provider instruction mapping belongs to the adapter.
+            invoiceDocumentId:
+              allOf:
+                - $ref: "#/components/schemas/PayoutDocumentId"
+              description: Optional uploaded invoice reference. Required only when the selected payment option declares invoiceRequired. Must resolve to a verified object owned by the effective financial profile.
     Quote:
       type: object
       additionalProperties: true
@@ -1258,6 +1454,33 @@ components:
       properties:
         id:
           type: string
+        feeAmount:
+          type: string
+          description: Exact source-currency conversion fee, rounded once to source precision. Zero for legacy or zero-fee quotes.
+        feeCurrency:
+          type: string
+          description: Source currency in which the conversion fee is charged.
+        sourceDebitAmount:
+          type: string
+          description: Source principal plus conversion fee only; retained compatibility meaning. Use totalSourceDebitAmount for Quick Send.
+        payoutFeeAmount:
+          type: string
+          description: Accepted payout fee in payoutFeeCurrency; its actual source charge is payoutFeeSourceAmount.
+        payoutFeeCurrency:
+          type: string
+          description: Destination/payout currency.
+        payoutFeeSourceAmount:
+          type: string
+          description: Accepted payout fee actually charged in source currency; zero for historical or conversion-only quotes.
+        totalFeeAmount:
+          type: string
+          description: Conversion fee plus payoutFeeSourceAmount, in source currency. Use for Quick Send total fees.
+        totalFeeCurrency:
+          type: string
+          description: Source currency used for combined fees.
+        totalSourceDebitAmount:
+          type: string
+          description: Source principal plus both customer fees. Recipient proceeds are unchanged.
         profileId:
           type: string
         sourceCurrency:
@@ -1277,6 +1500,20 @@ components:
         reference:
           type: string
         createdAt:
+          type: string
+    Error:
+      type: object
+      required:
+        - status
+        - message
+        - code
+      properties:
+        status:
+          type: string
+          const: error
+        message:
+          type: string
+        code:
           type: string
     Transfer:
       type: object
@@ -1313,6 +1550,33 @@ components:
                 - "null"
         id:
           type: string
+        feeAmount:
+          type: string
+          description: Exact source-currency conversion fee, rounded once to source precision. Zero for legacy or zero-fee quotes.
+        feeCurrency:
+          type: string
+          description: Source currency in which the conversion fee is charged.
+        sourceDebitAmount:
+          type: string
+          description: Source principal plus conversion fee only; retained compatibility meaning. Use totalSourceDebitAmount for Quick Send.
+        payoutFeeAmount:
+          type: string
+          description: Accepted payout fee in payoutFeeCurrency; its actual source charge is payoutFeeSourceAmount.
+        payoutFeeCurrency:
+          type: string
+          description: Destination/payout currency.
+        payoutFeeSourceAmount:
+          type: string
+          description: Accepted payout fee actually charged in source currency; zero for historical or conversion-only quotes.
+        totalFeeAmount:
+          type: string
+          description: Conversion fee plus payoutFeeSourceAmount, in source currency. Use for Quick Send total fees.
+        totalFeeCurrency:
+          type: string
+          description: Source currency used for combined fees.
+        totalSourceDebitAmount:
+          type: string
+          description: Source principal plus both customer fees. Recipient proceeds are unchanged.
         profileId:
           type: string
         quoteId:
@@ -1338,6 +1602,24 @@ components:
             - string
             - "null"
         updatedAt:
+          type: string
+    PayoutUsdLimitExceededError:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - code
+        - message
+      properties:
+        status:
+          type: string
+          const: error
+        code:
+          type: string
+          enum:
+            - PAYOUT_TRANSACTION_LIMIT_EXCEEDED
+            - PAYOUT_MONTHLY_LIMIT_EXCEEDED
+        message:
           type: string
     Transaction:
       type: object
@@ -1370,20 +1652,10 @@ components:
           type: boolean
         isFiat:
           type: boolean
-    Error:
-      type: object
-      required:
-        - status
-        - message
-        - code
-      properties:
-        status:
-          type: string
-          const: error
-        message:
-          type: string
-        code:
-          type: string
+    PayoutDocumentId:
+      type: string
+      pattern: ^pdoc_[A-Za-z0-9_-]{24}$
+      description: Opaque, profile-scoped invoice document reference. Never an S3 URL or object key.
   responses:
     Unauthorized:
       description: Missing, invalid or expired credential.
@@ -1480,4 +1752,4 @@ components:
       type: apiKey
       in: header
       name: x-ledig-signature
-      description: Ledig v1 HMAC-SHA256 signature prefixed with `v1=`.
+      description: HMAC-SHA256 signature prefixed with v1= for existing own-business/legacy selection, or v2= for header-bound managed-business delegation. See the Authentication section for exact canonical payloads.
