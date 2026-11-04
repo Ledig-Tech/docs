@@ -40,6 +40,12 @@
             ]
           },
           {
+            "group": "Managed businesses",
+            "pages": [
+              "guides/managed-businesses"
+            ]
+          },
+          {
             "group": "Conventions",
             "pages": [
               "guides/pagination",
@@ -81,24 +87,31 @@
           {
             "group": "Funding accounts",
             "pages": [
-              "GET /v1/virtual-accounts/{currency}"
+              "GET /v1/virtual-accounts/{currency}",
+              "POST /v1/virtual-accounts"
             ]
           },
           {
             "group": "Deposit wallets",
             "pages": [
-              "POST /v1/wallets",
               "GET /v1/wallets",
+              "POST /v1/wallets",
               "GET /v1/wallets/{id}"
             ]
           },
           {
             "group": "Recipients",
             "pages": [
-              "POST /v1/recipients",
               "GET /v1/recipients",
+              "POST /v1/recipients",
               "GET /v1/recipients/{id}",
               "DELETE /v1/recipients/{id}"
+            ]
+          },
+          {
+            "group": "Ledig businesses",
+            "pages": [
+              "GET /v1/ledig-businesses/{businessId}"
             ]
           },
           {
@@ -110,8 +123,8 @@
           {
             "group": "Quotes",
             "pages": [
-              "POST /v1/quotes",
               "GET /v1/quotes",
+              "POST /v1/quotes",
               "GET /v1/quotes/{id}"
             ]
           },
@@ -127,6 +140,27 @@
             "pages": [
               "GET /v1/transactions",
               "GET /v1/transactions/{id}"
+            ]
+          },
+          {
+            "group": "Managed businesses",
+            "pages": [
+              "GET /v1/managed-businesses",
+              "POST /v1/managed-businesses/applications",
+              "GET /v1/managed-businesses/{businessId}/onboarding",
+              "GET /v1/managed-businesses/{businessId}/onboarding/sections",
+              "GET /v1/managed-businesses/{businessId}/onboarding/{section}",
+              "PUT /v1/managed-businesses/{businessId}/onboarding/{section}",
+              "POST /v1/managed-businesses/{businessId}/onboarding/{section}/complete",
+              "GET /v1/managed-businesses/{businessId}/onboarding/{section}/options",
+              "POST /v1/managed-businesses/{businessId}/onboarding/owners",
+              "DELETE /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}",
+              "POST /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}/verification",
+              "POST /v1/managed-businesses/{businessId}/onboarding/documents",
+              "POST /v1/managed-businesses/{businessId}/onboarding/submit",
+              "GET /v1/managed-businesses/{businessId}/onboarding/share",
+              "POST /v1/managed-businesses/{businessId}/onboarding/share",
+              "DELETE /v1/managed-businesses/{businessId}/onboarding/share/{sessionId}"
             ]
           },
           {

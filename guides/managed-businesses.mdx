@@ -1,0 +1,74 @@
+---
+title: "Managed businesses"
+description: "Create and complete onboarding for a standard business managed by an institution."
+---
+
+A parent institution can create and manage standard businesses through the API. A managed business keeps its own onboarding, product access, recipients, accounts, balances and transactions. Managing it does not merge balances or approve it.
+
+This flow is separate from the core collection, conversion and settlement flow. It requires the `merchants` service and `merchants:read` or `merchants:write`.
+
+## Before you start
+
+- Authenticate as the institution, not the managed business. An API key must use HMAC v2 and the business-selection headers; see [Authentication](/auth/authentication#managed-business-delegation).
+- A dashboard session can use the same operations through its institution membership.
+- A relationship can exist while onboarding is incomplete. `canAct: false` means the business cannot yet be selected for delegated product requests.
+
+## Typical flow
+
+<Steps>
+  <Step title="List managed businesses">
+    `GET /v1/managed-businesses` returns the institution's active relationships, including businesses that are still onboarding. The directory is not paginated and does not accept filters.
+  </Step>
+
+  <Step title="Create an application">
+    `POST /v1/managed-businesses/applications` creates a standard business from `businessName` and a required `Idempotency-Key`. No email or signup invitation is sent. Reusing the key with the same name returns the original request; a different name returns `409`.
+  </Step>
+
+  <Step title="Read the application">
+    `GET /v1/managed-businesses/{businessId}/onboarding` returns the application state. `GET .../sections` lists the section statuses and what is still missing.
+  </Step>
+
+  <Step title="Complete the sections">
+    `GET .../{section}` returns one section, `PUT .../{section}` saves it, and `POST .../{section}/complete` marks it complete. `GET .../{section}/options` returns the allowed dropdown values for that section.
+  </Step>
+
+  <Step title="Add related parties">
+    `POST .../owners` adds an owner or related party. `POST .../owners/{ownerId}/verification` starts or resumes a required individual UBO verification. `DELETE .../owners/{ownerId}` removes one.
+  </Step>
+
+  <Step title="Upload documents">
+    `POST .../documents` requests an upload slot. PDF, JPEG and PNG files up to 50 MiB are accepted. Upload the file to the returned slot; the runtime verifies its size, MIME type and SHA-256.
+  </Step>
+
+  <Step title="Submit">
+    `POST .../onboarding/submit` submits the application for review. Submission does not approve the business or enable a product.
+  </Step>
+
+  <Step title="Share with the applicant">
+    Optionally create a scoped link so the applicant can complete the application without an account. See below.
+  </Step>
+</Steps>
+
+## Sharing links
+
+A sharing link lets an applicant edit and submit the application — including its documents — without a Ledig account. It gives no financial or dashboard access.
+
+| Operation | Path |
+| --- | --- |
+| Read the current link status | `GET /v1/managed-businesses/{businessId}/onboarding/share` |
+| Create or replace a link | `POST /v1/managed-businesses/{businessId}/onboarding/share` |
+| Revoke a link | `DELETE /v1/managed-businesses/{businessId}/onboarding/share/{sessionId}` |
+
+- Links expire after seven days.
+- To replace an existing link, send its `replaceSessionId` from the status response. A stale or missing replacement ID returns `409`; replacement revokes the prior sessions.
+- The URL is returned once and contains its credentials in the fragment. It is never emailed automatically. Do not log or persist it.
+
+<Warning>
+  Treat a sharing URL as a credential. Anyone with it can edit and submit the application, including uploading documents.
+</Warning>
+
+## After submission
+
+The business completes the normal review and approval flow. Its own compliance state, product access, limits, recipients, accounts and balances remain separate from the institution's. Use the managed business ID in `X-Ledig-Business-Id` for later product requests; the institution's funds and approvals are not substituted.
+
+The API reference lists every managed-business operation and its request fields.

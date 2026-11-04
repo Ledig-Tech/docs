@@ -1,10 +1,10 @@
 ---
 title: "Webhooks"
-description: "Outbound webhook delivery is not available yet. Use polling until it is announced."
+description: "Business webhook subscriptions are implemented but not enabled for the public API yet. Use polling until delivery is announced."
 ---
 
 <Warning>
-  Ledig does not currently deliver outbound webhooks to customers. No event names, payloads or retry behaviour are published, because the delivery system is still being built and any list would be inaccurate.
+  Business webhook subscriptions are implemented in the backend, but delivery is disabled by default and is not enabled for the public API yet. Registration, event names and payloads are not published here because the public contract and per-business enablement are not available.
 </Warning>
 
 ## Use polling for now
@@ -21,14 +21,14 @@ Poll with a bounded interval and back off on `429` or `5xx`. Use the cursor retu
 
 ## What will be published here
 
-When delivery is available, this page will document:
+When webhook delivery is enabled for your business, this page will document:
 
 - how to register and verify an endpoint
 - signature verification and key rotation
 - the event catalogue with exact payloads
 - delivery IDs, retries, ordering and replay
 
-Do not implement a webhook receiver against guessed field names. Event payloads will be versioned and documented before they are sent.
+Do not implement a webhook receiver against guessed field names. The event catalogue will be published before delivery is enabled for you.
 
 ## Early access
 

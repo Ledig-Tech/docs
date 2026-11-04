@@ -31,8 +31,8 @@ auth/authentication.mdx             HMAC signing and key lifecycle
 errors/errors-and-troubleshooting.mdx   envelope, codes, limits, retries
 hooks/webhooks.mdx                  delivery status and polling
 guides/                             balances, funding, recipients, quotes,
-                                    transfers, transactions, pagination,
-                                    idempotency
+                                    transfers, transactions, managed businesses,
+                                    pagination, idempotency
 api-reference/introduction.mdx      API reference landing page
 openapi/public.yaml                 generated public contract
 logo/, favicon.png                  brand assets

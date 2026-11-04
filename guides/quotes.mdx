@@ -54,10 +54,11 @@ Content-Type: application/json
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `type` | Yes | `fiat` or `crypto` |
-| `recipientId` | Yes | An approved [recipient](/guides/recipients) |
-| `paymentMethodId` | Yes | From the payment options response |
-| `chain` | No | Crypto network, when the destination needs it |
+| `type` | Yes | `fiat`, `crypto` or `ledig` |
+| `recipientId` | For `fiat` and `crypto` | An approved [recipient](/guides/recipients) |
+| `businessId` | For `ledig` | Exact Ledig business ID, confirmed with `GET /v1/ledig-businesses/{businessId}` |
+| `paymentMethodId` | Yes | From the payment options response. For `ledig`, use `ledig` |
+| `chain` | No | Crypto network, when the destination needs it. Not allowed for `ledig` |
 | `narration` | No | Description sent with the payout |
 
 The response contains the quote ID, the source and destination amounts, the rate, the status and `expiresAt`:
@@ -82,9 +83,53 @@ The response contains the quote ID, the source and destination amounts, the rate
 
 The server calculates `destinationAmount`. Never calculate it from the indicative rates endpoint: a rate is a reference, a quote is executable.
 
+## Pay a Ledig business
+
+A direct internal transfer pays another Ledig business without saving a recipient. Use it when the destination is a Ledig business and you have its exact business ID.
+
+1. Look up the ID to confirm the business name:
+
+```http
+GET /v1/ledig-businesses/business_destination
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "business_destination",
+    "name": "Example Trading Limited"
+  }
+}
+```
+
+The lookup is exact; it is not a directory or partial-name search. Ask the sender to confirm the returned name before creating the quote.
+
+2. Create the quote with `payOut.type: "ledig"`:
+
+```json
+{
+  "sourceCurrency": "USDT",
+  "destinationCurrency": "NGN",
+  "sourceAmount": "100",
+  "payOut": {
+    "type": "ledig",
+    "businessId": "business_destination",
+    "paymentMethodId": "ledig"
+  }
+}
+```
+
+- Send exactly one `businessId` with `paymentMethodId: "ledig"`. Do not send `recipientId` or `chain`.
+- The source profile must be active and eligible for payouts. Destination eligibility and compliance are checked again during execution.
+- A transfer to the same financial profile is rejected.
+- `GET /v1/quotes/payment-options` accepts an optional `businessId` for internal payout discovery. It is mutually exclusive with `recipientId`.
+- The quote's `payOut` metadata contains the business ID and name; private execution fields are not exposed.
+
 ## Rules
 
 - A quote that converts between currencies can omit `payOut`. A quote that pays out in the same currency must include it.
+- For `payOut.type: "ledig"`, use `businessId` and `paymentMethodId: "ledig"`; do not send `recipientId` or `chain`.
 - `payIn` with `type: "temporary_bank_account"` is reserved but **not implemented**. Requests that send it return `501 NOT_IMPLEMENTED`.
 - A quote is single-use. A transfer consumes it, and a consumed or expired quote cannot be used again.
 - `expiresAt` is authoritative. Create a new quote rather than retrying an expired one.

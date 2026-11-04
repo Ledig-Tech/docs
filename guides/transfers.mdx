@@ -46,6 +46,10 @@ Before it accepts the transfer, Ledig checks that the quote is still valid and t
 }
 ```
 
+## Transfer to a Ledig business
+
+When the quote uses `payOut.type: "ledig"`, the transfer pays another Ledig business directly. Create it with the same `POST /v1/transfers` call and `quoteId`; no saved recipient is involved. The destination and its eligibility are rechecked during execution. See [Quotes](/guides/quotes#pay-a-ledig-business) for the quote shape.
+
 ## Status
 
 | Status | Meaning |

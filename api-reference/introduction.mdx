@@ -30,6 +30,8 @@ Every endpoint page has the same layout:
 
 The playground sends requests to the sandbox. It does not sign requests for you: compute `x-ledig-timestamp` and `x-ledig-signature` as described in [Authentication](/auth/authentication), then paste them into the playground.
 
+Most operations use a business API key. Managed-business onboarding also accepts a dashboard session. An API key acting for a managed business must use HMAC v2 and the business-selection headers; see [Authentication](/auth/authentication#managed-business-delegation).
+
 ## Recommended flow
 
 <Steps>
@@ -43,7 +45,7 @@ The playground sends requests to the sandbox. It does not sign requests for you:
     `GET /v1/virtual-accounts/{currency}` returns fiat receiving instructions. `POST /v1/wallets` issues a crypto deposit address.
   </Step>
   <Step title="Add a destination">
-    Create a [recipient](/guides/recipients), then wait for its `reviewStatus` to become `approved`.
+    Create a [recipient](/guides/recipients), then wait for its `reviewStatus` to become `approved`. To pay another Ledig business directly, use `GET /v1/ledig-businesses/{businessId}` to confirm its name and skip the saved recipient.
   </Step>
   <Step title="Price the payout">
     `GET /v1/quotes/payment-options` returns the payout methods, fees and limits. `POST /v1/quotes` fixes the rate, destination amount and expiry.
@@ -60,10 +62,11 @@ This reference covers customer operations only:
 - currencies, rates and balances
 - fiat funding accounts and crypto deposit wallets
 - recipients
-- payment options, quotes and transfers
+- payment options, quotes and transfers, including direct transfers to Ledig businesses
 - transaction history
+- managed-business onboarding for institutions that manage standard businesses
 
-Dashboard, onboarding, API-key management and staff endpoints are not part of the public machine API and do not appear here.
+Dashboard authentication, signup, API-key management and staff endpoints are not part of the public machine API. Managed-business onboarding appears under its own group; it requires the `merchants` service and `merchants:read` or `merchants:write`, and is separate from the core collection, conversion and settlement flow. See [Managed businesses](/guides/managed-businesses).
 
 ## Errors
 

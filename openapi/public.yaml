@@ -10,7 +10,7 @@ info:
 
     Preview: this document is generated from the combined contract and the response schemas are still being finalised. Only the operations listed here are public.
 
-    Authenticate with a business API key and HMAC-SHA256. See https://docs.ledig.io/auth/authentication.
+    Most operations authenticate with a business API key and HMAC-SHA256. Managed-business operations also accept a dashboard bearer session. See https://docs.ledig.io/auth/authentication.
   contact:
     name: Ledig
     email: admin@ledig.io
@@ -23,6 +23,8 @@ security:
     LedigTimestamp: []
     LedigSignature: []
 tags:
+  - name: Managed businesses
+    description: Parent-managed standard onboarding.
   - name: System
     description: Health and availability.
   - name: Balances
@@ -35,6 +37,8 @@ tags:
     description: Crypto addresses that receive customer deposits.
   - name: Recipients
     description: Saved payout destinations.
+  - name: Ledig businesses
+    description: Business identity confirmation for internal transfers.
   - name: Payment options
     description: Available payout methods, fees and limits.
   - name: Quotes
@@ -44,6 +48,999 @@ tags:
   - name: Transactions
     description: Customer transaction history.
 paths:
+  /v1/managed-businesses/{businessId}/onboarding/share:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: getManagedOnboardingShare
+      summary: Get sharing-link status
+      description: Parent-only metadata. Returns null when no active link exists. Never returns a token or recovers an existing URL.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      responses:
+        "200":
+          description: Sharing metadata or null.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: private, no-store
+            Referrer-Policy:
+              schema:
+                type: string
+              description: no-referrer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        oneOf:
+                          - $ref: "#/components/schemas/ManagedOnboardingShare"
+                          - type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      x-scope: merchants:read
+    post:
+      tags:
+        - Managed businesses
+      operationId: createManagedOnboardingShare
+      summary: Create or replace a shareable onboarding link
+      description: Only for editable parent-managed applications. Anyone with this link can edit and submit this application without an account, including its documents, but has no financial or dashboard access. Expires after seven days. Send replaceSessionId from GET to replace an existing link; stale or missing replacement IDs return 409. Replacement atomically revokes prior sessions. URL credentials are returned once in the fragment and are never emailed automatically. Do not log or persist them.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                replaceSessionId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: One-time disclosure of the sharing URL.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: private, no-store
+            Referrer-Policy:
+              schema:
+                type: string
+              description: no-referrer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - sessionId
+                          - expiresAt
+                          - url
+                        properties:
+                          sessionId:
+                            type: string
+                            format: uuid
+                          expiresAt:
+                            type: string
+                            format: date-time
+                          url:
+                            type: string
+                            format: uri
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/share/{sessionId}:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+      - in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags:
+        - Managed businesses
+      operationId: revokeManagedOnboardingShare
+      summary: Revoke a sharing link and its browser sessions
+      description: Parent-only, idempotent for the same revoked session. Other applications and institutions cannot revoke this link. Parent dashboard/API access is retained.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      responses:
+        "200":
+          description: Link revoked.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: private, no-store
+            Referrer-Policy:
+              schema:
+                type: string
+              description: no-referrer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - revoked
+                        properties:
+                          revoked:
+                            const: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      x-scope: merchants:write
+  /v1/managed-businesses/applications:
+    parameters:
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+      - in: header
+        name: Idempotency-Key
+        required: true
+        description: Institution-scoped invitation key. Reuse for retry; changing the payload returns 409.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+    post:
+      tags:
+        - Managed businesses
+      operationId: createParentManagedStandardBusiness
+      summary: Create a standard sub-merchant application managed by its parent
+      description: Create a parent-managed standard business using businessName only. Contact, company, ownership and KYB details are collected in the canonical onboarding application. No email or signup invitation is sent. The parent can complete it through dashboard/bearer or API key, or explicitly create a scoped sharing link. Reuse Idempotency-Key with the same businessName; conflicts return 409. Select the institution in business headers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagedBusinessApplicationInput"
+      responses:
+        "202":
+          description: Application and managed business created or resumed. Includes requestId, applicationId and businessId; no credentials.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ManagedBusinessInvitationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: parentManagedGetOnboardingApplication
+      summary: Get the onboarding application state
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters: []
+      responses:
+        "200":
+          description: Application state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingApplication"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: merchants:read
+  /v1/managed-businesses/{businessId}/onboarding/sections:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: parentManagedListOnboardingSections
+      summary: List section statuses
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters: []
+      responses:
+        "200":
+          description: Section summaries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - applicationId
+                          - updatedAt
+                          - sections
+                        properties:
+                          applicationId:
+                            type: string
+                          updatedAt:
+                            type: string
+                            description: Opaque edit revision. Preserve this exact value and send it in If-Match when saving a parent-managed application.
+                          sections:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OnboardingSectionSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:read
+  /v1/managed-businesses/{businessId}/onboarding/{section}:
+    parameters:
+      - $ref: "#/components/parameters/OnboardingSection"
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: parentManagedGetOnboardingSection
+      summary: Get one section
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters: []
+      responses:
+        "200":
+          description: Section state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingSectionState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:read
+    put:
+      tags:
+        - Managed businesses
+      operationId: parentManagedSaveOnboardingSection
+      summary: Save one section
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted application updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions; optional for other onboarding. A stale or missing required revision returns 409 without changing the draft.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  description: Section payload; validated per section.
+      responses:
+        "200":
+          description: Section saved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingSectionState"
+          headers:
+            ETag:
+              description: Quoted updatedAt revision to use on the next mutation.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/{section}/complete:
+    parameters:
+      - $ref: "#/components/parameters/OnboardingSection"
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedCompleteOnboardingSection
+      summary: Mark one section complete
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted application updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions; optional for other onboarding. A stale or missing required revision returns 409 without changing the draft.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Section completed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingApplication"
+          headers:
+            ETag:
+              description: Quoted updatedAt revision to use on the next mutation.
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/{section}/options:
+    parameters:
+      - $ref: "#/components/parameters/OnboardingSection"
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: parentManagedGetOnboardingSectionOptions
+      summary: Get dropdown options for a section
+      description: Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used.  For section=documents, data.options.uploadPolicy contains maxSizeBytes=52428800 and allowedMimeTypes=[application/pdf,image/jpeg,image/png].
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters: []
+      responses:
+        "200":
+          description: Section options.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - sectionKey
+                          - options
+                        properties:
+                          sectionKey:
+                            type: string
+                          options:
+                            type: object
+                            additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:read
+  /v1/managed-businesses/{businessId}/onboarding/owners:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedAddOnboardingOwner
+      summary: Add a related party
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted application updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions; optional for other onboarding. A stale or missing required revision returns 409 without changing the draft.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelatedPartyInput"
+      responses:
+        "201":
+          description: Related party added.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingSectionState"
+          headers:
+            ETag:
+              description: Quoted updatedAt revision to use on the next mutation.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}:
+    parameters:
+      - in: path
+        name: ownerId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    delete:
+      tags:
+        - Managed businesses
+      operationId: parentManagedRemoveOnboardingOwner
+      summary: Remove a related party
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted application updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions; optional for other onboarding. A stale or missing required revision returns 409 without changing the draft.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Related party removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingSectionState"
+          headers:
+            ETag:
+              description: Quoted updatedAt revision to use on the next mutation.
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}/verification:
+    parameters:
+      - in: path
+        name: ownerId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedStartOnboardingUboVerification
+      summary: Start or resume a required individual UBO verification
+      description: Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. Uses the current submitted revision and its persisted provider applicant. Ordinary individual shareholders and owners from other applications cannot obtain a session.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters: []
+      responses:
+        "200":
+          description: Short-lived provider SDK access. Do not cache or log this response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - applicationId
+                          - relatedPartyId
+                          - providerApplicantId
+                          - accessToken
+                          - expiresInSeconds
+                        properties:
+                          applicationId:
+                            type: string
+                          relatedPartyId:
+                            type: string
+                          providerApplicantId:
+                            type: string
+                          accessToken:
+                            type: string
+                          expiresInSeconds:
+                            type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/documents:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedCreateOnboardingDocumentUpload
+      summary: Request a document upload slot
+      description: Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used.  PDF/JPEG/PNG up to 50 MiB. Staff must declare sizeBytes; customer declarations remain optional for compatibility. Actual size, MIME and SHA-256 are verified before acceptance. Use the File/Blob as the PUT body; browsers set Content-Length automatically. See docs/api/onboarding-document-uploads.md.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions. Stale revisions return 409.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - requirementType
+                - documentKind
+                - originalFileName
+                - mimeType
+                - checksumSha256
+              properties:
+                requirementType:
+                  type: string
+                documentKind:
+                  type: string
+                originalFileName:
+                  type: string
+                mimeType:
+                  type: string
+                checksumSha256:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                sizeBytes:
+                  type: integer
+                  minimum: 1
+                  maximum: 52428800
+      responses:
+        "200":
+          description: Upload slot created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - document
+                          - upload
+                        properties:
+                          document:
+                            type: object
+                            additionalProperties: true
+                          upload:
+                            type: object
+                            additionalProperties: true
+                            properties:
+                              maxSizeBytes:
+                                type: integer
+                                const: 52428800
+                              allowedMimeTypes:
+                                type: array
+                                items:
+                                  type: string
+                                  enum:
+                                    - application/pdf
+                                    - image/jpeg
+                                    - image/png
+                            required:
+                              - maxSizeBytes
+                              - allowedMimeTypes
+          headers:
+            ETag:
+              description: Next quoted application revision.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: File exceeds 50 MiB (error code BAD_REQUEST).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/submit:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed sub-merchant business ID. The parent remains selected in authentication headers.
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedSubmitOnboardingApplication
+      summary: Submit the application for review
+      description: "Parent-led standard onboarding. Requires an active institutional parent with merchant service access, a current management relationship and parent_managed origin. Pending children are permitted on this onboarding route only. Uses the same payload, validation and response as the corresponding standard onboarding endpoint. The application is derived from the authorized relationship. No onboarding-session header is used. "
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Quoted updatedAt from GET /sections. Required for parent-managed applications, including shared-link sessions. Stale revisions return 409.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application submitted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OnboardingApplication"
+          headers:
+            ETag:
+              description: Next quoted application revision.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses:
+    parameters:
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    get:
+      tags:
+        - Managed businesses
+      operationId: listManagedBusinesses
+      summary: List an institution's managed standard businesses
+      description: |
+        Select the active institutional business itself; legacy child-profile
+        contexts are refused. Requires its merchants service. Returns active management relationships, including targets
+        still onboarding with canAct false. This directory is unpaginated and
+        rejects unknown query parameters. Relationship status is independent
+        of business activation and product approval.
+      responses:
+        "200":
+          description: Institution-scoped managed business directory.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ManagedBusiness"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: merchants:read
   /v1/health:
     get:
       tags:
@@ -356,10 +1353,10 @@ paths:
         - Funding accounts
       operationId: getVirtualAccount
       summary: Get a fiat funding account
-      description: Returns the fiat receiving account for a currency, creating one if needed.
+      description: Reads an existing fiat receiving account for a currency.
       responses:
         "200":
-          description: Virtual account.
+          description: Existing active virtual account.
           content:
             application/json:
               schema:
@@ -375,6 +1372,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimited"
         "503":
@@ -384,7 +1383,113 @@ paths:
         content: |-
           **Required scope:** `fiat_wallet`
 
-          Returns the profile's active fiat receiving account for a currency, creating one if none exists. Use the account number and bank details for customer deposits. Responses are `Cache-Control: no-store`; fetch them when needed and do not cache them. If a previous issuance is still pending, the route returns `409` instead of creating a second account.
+          Returns an existing active fiat receiving account for the profile and currency, or `404` when none exists. GET and HEAD never create an account or start onboarding. Use `POST /v1/virtual-accounts` with an `Idempotency-Key` to request issuance. Existing provider instructions can be refreshed through a provider read. Responses are `Cache-Control: no-store`; fetch them when needed and do not cache them.
+  /v1/virtual-accounts:
+    post:
+      tags:
+        - Funding accounts
+      operationId: createVirtualAccount
+      summary: Issue an additional receiving account with durable customer idempotency
+      description: Requests a fiat receiving account with durable idempotency.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - currency
+              properties:
+                currency:
+                  type: string
+                  minLength: 1
+                  maxLength: 10
+                provider:
+                  type: string
+                  minLength: 1
+                  maxLength: 30
+                accountName:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+      responses:
+        "200":
+          description: The issued account or the original completed result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VirtualAccount"
+        "202":
+          description: Durable receiving request awaiting provider approval or admin action.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - data
+                properties:
+                  status:
+                    const: success
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - id
+                      - currency
+                      - status
+                      - missing
+                      - accountId
+                    properties:
+                      id:
+                        type: string
+                      currency:
+                        type: string
+                        pattern: ^[A-Z][A-Z0-9]{1,11}$
+                      status:
+                        type: string
+                        enum:
+                          - requested
+                          - manual_review
+                          - pending_provider
+                          - completed
+                      missing:
+                        type: array
+                        items:
+                          type: string
+                      accountId:
+                        type:
+                          - string
+                          - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: fiat_wallet
+      x-mint:
+        content: |-
+          **Required scope:** `fiat_wallet`
+
+          Requests a fiat receiving account for the profile. Send a currency and an `Idempotency-Key`; exact retries return the original result and changed inputs return `409`. Issuance requires write authorization and current service eligibility. A completed account returns `200`; a durable pending receiving request returns `202`. Clients that previously used GET to create an account must migrate to this explicit POST.
   /v1/recipients:
     post:
       tags:
@@ -535,6 +1640,60 @@ paths:
           **Required scope:** `recipient_manage`
 
           Removes a recipient so it can no longer be used for a payout. The operation is a soft delete; the payout history that references the destination is retained. The response returns the deleted recipient.
+  /v1/ledig-businesses/{businessId}:
+    get:
+      tags:
+        - Ledig businesses
+      operationId: lookupLedigBusiness
+      summary: Look up an eligible Ledig business for an internal transfer
+      description: Looks up an exact business ID for an internal transfer.
+      parameters:
+        - in: path
+          name: businessId
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+      responses:
+        "200":
+          description: Verified business identity for display; transfer eligibility is checked again during execution.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - name
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: quotes:read
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:read`
+
+          Looks up an exact Ledig business ID so the sender can confirm its name before creating a quote with `payOut.type: ledig` and `businessId`. The sending financial profile must be active and eligible for payouts; destination eligibility and compliance checks also apply. Transfers to the same financial profile are rejected. This is not a directory or partial-name search and creates no saved recipient or payment. Response `data` contains only `id` and `name`. Responses use `Cache-Control: private, no-store`; do not cache them. Eligibility is checked again before execution.
   /v1/quotes/payment-options:
     get:
       tags:
@@ -579,6 +1738,14 @@ paths:
             minLength: 1
             maxLength: 200
           description: Business-owned recipient for withdrawal option filtering. Not accepted for deposit discovery.
+        - in: query
+          name: businessId
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Destination Ledig business for direct internal-transfer discovery. Mutually exclusive with recipientId; requires withdraw and no chain.
       responses:
         "200":
           description: Eligible deposit or withdrawal payment options.
@@ -1028,6 +2195,298 @@ components:
           const: success
         message:
           type: string
+    ManagedOnboardingShare:
+      type: object
+      required:
+        - sessionId
+        - expiresAt
+        - expired
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+          format: date-time
+        expired:
+          type: boolean
+    ManagedBusinessApplicationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - businessName
+      properties:
+        businessName:
+          type: string
+          minLength: 1
+          maxLength: 255
+      example:
+        businessName: Example business
+    ManagedBusinessInvitationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - requestId
+        - applicationId
+        - businessId
+      properties:
+        status:
+          type: string
+          const: accepted
+        requestId:
+          type: string
+        applicationId:
+          type:
+            - string
+            - "null"
+        businessId:
+          type:
+            - string
+            - "null"
+    OnboardingApplication:
+      type: object
+      additionalProperties: true
+      description: Onboarding application state. Service-owned shape; core fields shown.
+      properties:
+        applicationId:
+          type: string
+        businessType:
+          type: string
+          enum:
+            - standard
+            - institutional
+        verification:
+          type:
+            - object
+            - "null"
+          description: Safe current verification summary returned by the application GET endpoint.
+          properties:
+            attemptId:
+              type: string
+            subjects:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  kind:
+                    type: string
+                    enum:
+                      - company
+                      - individual_ubo
+                      - corporate_owner
+                  relatedPartyId:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                      - approved
+                      - rejected
+                      - changes_requested
+                  required:
+                    type: boolean
+        status:
+          $ref: "#/components/schemas/ApplicationStatus"
+        currentSection:
+          type: string
+        progressPercent:
+          type: integer
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingSectionSummary"
+    OnboardingSectionSummary:
+      type: object
+      required:
+        - sectionKey
+        - status
+      properties:
+        sectionKey:
+          type: string
+          enum:
+            - company
+            - activity
+            - ownership
+            - regulation
+            - documents
+            - review
+        status:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+    OnboardingSectionState:
+      type: object
+      additionalProperties: true
+      required:
+        - sectionKey
+        - status
+      properties:
+        sectionKey:
+          type: string
+        sectionOrder:
+          type: integer
+        status:
+          type: string
+        currentSection:
+          type: string
+        progressPercent:
+          type: integer
+        data:
+          type: object
+          additionalProperties: true
+    RelatedPartyInput:
+      type: object
+      additionalProperties: true
+      description: Additional answers are preserved under the related party responses field. Identifiers and verification state remain server-owned.
+      required:
+        - type
+        - ownershipPercentage
+      properties:
+        type:
+          type: string
+          enum:
+            - individual
+            - company
+        firstName:
+          type: string
+        middleName:
+          type:
+            - string
+            - "null"
+        lastName:
+          type: string
+        email:
+          type: string
+        dateOfBirth:
+          type: string
+        nationality:
+          type: string
+        dualNationality:
+          type:
+            - string
+            - "null"
+        residenceCountry:
+          type: string
+        resStreet:
+          type:
+            - string
+            - "null"
+        resCity:
+          type:
+            - string
+            - "null"
+        roles:
+          type: array
+          items:
+            type: string
+        taxCountry:
+          type:
+            - string
+            - "null"
+        taxIdType:
+          type:
+            - string
+            - "null"
+        taxIdNumber:
+          type:
+            - string
+            - "null"
+        companyName:
+          type: string
+        companyCountry:
+          type:
+            - string
+            - "null"
+        companyRegistrationNumber:
+          type:
+            - string
+            - "null"
+        ownershipPercentage:
+          type: string
+        companyRegistrationDate:
+          type:
+            - string
+            - "null"
+    Error:
+      type: object
+      required:
+        - status
+        - message
+        - code
+      properties:
+        status:
+          type: string
+          const: error
+        message:
+          type: string
+        code:
+          type: string
+    ManagedBusiness:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - institutionBusinessId
+        - businessId
+        - applicationId
+        - requestId
+        - name
+        - segment
+        - businessStatus
+        - onboardingStatus
+        - status
+        - canAct
+        - createdAt
+        - revokedAt
+      properties:
+        id:
+          type: string
+          description: Durable management relationship ID.
+        institutionBusinessId:
+          type: string
+        businessId:
+          type: string
+        applicationId:
+          type: string
+        requestId:
+          type: string
+        name:
+          type:
+            - string
+            - "null"
+        segment:
+          type: string
+          const: standard
+        businessStatus:
+          type: string
+        onboardingStatus:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+          description: Relationship state, separate from business activation. Directory returns active relationships only.
+        canAct:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        onboardingMode:
+          type: string
+          enum:
+            - invitation
+            - parent_managed
+          description: Parent-managed applications can be completed through the institution without applicant credentials.
     CurrencyCatalogEntry:
       type: object
       additionalProperties: true
@@ -1419,8 +2878,46 @@ components:
           additionalProperties: false
           required:
             - type
-            - recipientId
             - paymentMethodId
+          description: External payouts use recipientId. Direct internal transfers use businessId without saving a recipient. Existing internal recipientId requests and legacy recipient creation/discovery remain supported during deprecation; new clients use businessId. Business names and internal execution fingerprints are resolved by the server and are not accepted here.
+          oneOf:
+            - properties:
+                type:
+                  enum:
+                    - fiat
+                    - crypto
+              required:
+                - recipientId
+              not:
+                required:
+                  - businessId
+            - properties:
+                type:
+                  const: ledig
+                paymentMethodId:
+                  const: ledig
+              required:
+                - businessId
+              not:
+                anyOf:
+                  - required:
+                      - recipientId
+                  - required:
+                      - chain
+            - deprecated: true
+              properties:
+                type:
+                  const: ledig
+                paymentMethodId:
+                  const: ledig
+              required:
+                - recipientId
+              not:
+                anyOf:
+                  - required:
+                      - businessId
+                  - required:
+                      - chain
           properties:
             type:
               type: string
@@ -1430,6 +2927,10 @@ components:
                 - ledig
             recipientId:
               type: string
+            businessId:
+              type: string
+              minLength: 1
+              maxLength: 200
             paymentMethodId:
               type: string
             chain:
@@ -1500,20 +3001,6 @@ components:
         reference:
           type: string
         createdAt:
-          type: string
-    Error:
-      type: object
-      required:
-        - status
-        - message
-        - code
-      properties:
-        status:
-          type: string
-          const: error
-        message:
-          type: string
-        code:
           type: string
     Transfer:
       type: object
@@ -1652,6 +3139,18 @@ components:
           type: boolean
         isFiat:
           type: boolean
+    ApplicationStatus:
+      type: string
+      enum:
+        - draft
+        - submitting
+        - kyb_provider_action_required
+        - submitted
+        - under_review
+        - approved
+        - rejected
+        - changes_requested
+        - cancelled
     PayoutDocumentId:
       type: string
       pattern: ^pdoc_[A-Za-z0-9_-]{24}$
@@ -1665,6 +3164,24 @@ components:
             $ref: "#/components/schemas/Error"
     Forbidden:
       description: Inactive account, missing profile or missing scope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Version conflict or duplicate resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Invalid request.
       content:
         application/json:
           schema:
@@ -1691,19 +3208,36 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
-    BadRequest:
-      description: Invalid request.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-    NotFound:
-      description: Resource not found.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
   parameters:
+    SelectedBusinessId:
+      in: header
+      name: X-Ledig-Business-Id
+      required: false
+      description: Effective direct or managed standard business. Delegation is checked against the authenticated institution and requires HMAC v2 for API keys. Never inferred from a request body.
+      schema:
+        type: string
+        minLength: 1
+    ActingBusinessId:
+      in: header
+      name: X-Ledig-Acting-Business-Id
+      required: false
+      description: Verified actor institution for selection. Must be a current bearer membership or the API key's owner. HMAC v2 signs the exact trimmed value or empty string when omitted.
+      schema:
+        type: string
+        minLength: 1
+    OnboardingSection:
+      in: path
+      name: section
+      required: true
+      schema:
+        type: string
+        enum:
+          - company
+          - activity
+          - ownership
+          - regulation
+          - documents
+          - review
     IdempotencyKey:
       in: header
       name: Idempotency-Key
@@ -1738,6 +3272,11 @@ components:
           - asc
           - desc
   securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "User access JWT from login/refresh. Send as `Authorization: Bearer <accessToken>`."
     LedigApiKey:
       type: apiKey
       in: header

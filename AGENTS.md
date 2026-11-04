@@ -26,7 +26,7 @@ Never publish:
 - internal admin routes, staff permissions or back-office procedures
 - provider identities, costs or routing logic
 - retired or simulated endpoints as if they were live
-- outbound webhook payloads or event names before delivery is implemented
+- outbound webhook payloads or event names before delivery is enabled for the public API
 
 Use placeholders such as `YOUR_API_KEY`, `LEDIG_API_KEY` and `example_quote_id`. Do not create realistic credential-shaped examples.
 
@@ -35,7 +35,7 @@ Use placeholders such as `YOUR_API_KEY`, `LEDIG_API_KEY` and `example_quote_id`.
 - Sandbox base URL: `https://api-staging.ledig.io`
 - Production base URL: not published. Do not invent one.
 - Support: `admin@ledig.io`
-- Customer outbound webhooks: not available. Say so plainly.
+- Customer outbound webhooks: implemented in the backend, disabled by default and not yet part of the public API. Do not document delivery as live.
 
 Recheck these before changing them. A short-lived environment fact does not belong in five pages.
 

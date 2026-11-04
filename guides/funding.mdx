@@ -5,7 +5,7 @@ description: "Get fiat funding instructions and create crypto deposit wallets."
 
 ## Fiat funding accounts
 
-`GET /v1/virtual-accounts/{currency}` returns the bank account for receiving fiat in that currency:
+`GET /v1/virtual-accounts/{currency}` reads the profile's existing active account for that currency. It never creates one. If the profile has no account, the route returns `404`.
 
 ```http
 GET /v1/virtual-accounts/NGN
@@ -26,11 +26,46 @@ GET /v1/virtual-accounts/NGN
 }
 ```
 
-The route is **get-or-create**. If the profile already has an active account for the currency, it returns that account. If not, it provisions one and returns the new details.
+### Request an account
 
-- A profile holds one active account per currency.
+If the profile has no account for the currency, request one with `POST /v1/virtual-accounts`. The `Idempotency-Key` header is **required**:
+
+```http
+POST /v1/virtual-accounts
+Idempotency-Key: 8f14e45f-ea3b-4c1a-9d5e-2f7c1a6b9d10
+Content-Type: application/json
+```
+
+```json
+{
+  "currency": "NGN",
+  "accountName": "Example Business"
+}
+```
+
+`provider` is optional. A completed request returns `200` with the issued account. A durable request that is still pending returns `202`:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "var_example",
+    "currency": "NGN",
+    "status": "pending_provider",
+    "missing": [],
+    "accountId": null
+  }
+}
+```
+
+`status` is `requested`, `manual_review`, `pending_provider` or `completed`. `missing` lists anything the request still needs; `accountId` is populated once an account exists.
+
+<Warning>
+  `GET` no longer creates an account. If your integration relied on the old get-or-create behaviour, migrate to `POST /v1/virtual-accounts` with an `Idempotency-Key`.
+</Warning>
+
+- Reuse the same `Idempotency-Key` when retrying the same request. Changed inputs with the same key return `409`.
 - Responses are `Cache-Control: no-store` because funding instructions can change. Fetch them when you need them; do not cache them in your UI or logs.
-- If a previous issuance is still awaiting provider reconciliation, the route returns `409 CONFLICT` instead of creating a second account. Retry after the pending issuance resolves.
 - Use the returned account number for bank transfers. Do not expose another business's account details.
 
 ## Crypto deposit wallets

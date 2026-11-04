@@ -3,7 +3,7 @@ title: "Authentication"
 description: "Sign every request with an API key and HMAC-SHA256."
 ---
 
-Every request except `GET /v1/health` must be signed with a business API key. Ledig verifies the signature before it reads the request body or touches a service.
+Most requests use a business API key and an HMAC signature. Managed-business operations can also use a dashboard session. Ledig verifies the signature and credential before it reads the request body or touches a service.
 
 ## Credentials
 
@@ -23,7 +23,7 @@ Dashboard sessions are a separate credential used by the dashboard. The machine 
 - Creating a key returns the API key and its secret **once**.
 - Rotating a key keeps the API key and returns a **new secret once**. The old secret stops working immediately.
 - Revoking a key takes effect immediately.
-- API keys cannot call key management, dashboard authentication, signup, onboarding, internal admin or provider webhook routes.
+- API keys cannot call key management, dashboard authentication, signup, internal admin or provider webhook routes. Managed-business onboarding is available with the `merchants` scope and HMAC v2.
 
 Store the secret in a server-side secret manager. Never put it in browser code, a mobile app, a repository or a log.
 
@@ -33,7 +33,7 @@ Store the secret in a server-side secret manager. Never put it in browser code, 
 | --- | --- |
 | `x-ledig-key` | Your API key |
 | `x-ledig-timestamp` | Current Unix time in **seconds** |
-| `x-ledig-signature` | `v1=` followed by the base64 HMAC-SHA256 signature |
+| `x-ledig-signature` | `v1=` followed by the base64 HMAC-SHA256 signature. `v2=` for managed-business delegation |
 
 ## Canonical payload
 
@@ -161,6 +161,42 @@ await fetch("https://api-staging.ledig.io/v1/quotes", {
   body,
 });
 ```
+
+## Managed-business delegation
+
+An institution that manages standard businesses can act for a managed business by naming it in the request headers. An API key must use HMAC v2 when it selects a managed business; v1 remains valid for own-business requests.
+
+| Header | Meaning |
+| --- | --- |
+| `X-Ledig-Business-Id` | The managed standard business to act for |
+| `X-Ledig-Acting-Business-Id` | The institution acting for it. Optional; it must be the API key's owner |
+| `X-Ledig-Profile-Id` | Legacy profile selection. Omit it, or use the same value as `X-Ledig-Business-Id` |
+
+The v2 payload is a compact JSON array, not the dot-separated v1 string:
+
+```js
+const payload = JSON.stringify([
+  "ledig-hmac-v2",
+  timestamp,
+  method.toUpperCase(),
+  pathWithQuery,
+  rawBody,
+  businessId?.trim() ?? "",
+  profileId?.trim() ?? "",
+  actingBusinessId?.trim() ?? "",
+]);
+
+const signature = `v2=${createHmac("sha256", secret).update(payload).digest("base64")}`;
+```
+
+- `businessId`, `profileId` and `actingBusinessId` are the values of the three selection headers. A missing header is an empty string; do not substitute an inferred default.
+- Sign the exact path, query string, timestamp and raw body you send. Do not parse and re-serialize the body between signing and sending.
+- The timestamp window is still 300 seconds.
+- HMAC v1 cannot delegate to a managed business because it does not sign the selection headers.
+- A dashboard session can also call these operations, using its own memberships instead of an API key.
+- Selection does not expand scopes. The key's permissions still apply to the target business.
+
+The exact selection, audit and header rules are enforced by the managed-business operations in the [managed-business guide](/guides/managed-businesses). The operation pages list the required `merchants` scope.
 
 ## Permissions
 
