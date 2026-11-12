@@ -1,0 +1,196 @@
+---
+title: "Authentication"
+description: "Sign API requests and select the correct business context."
+---
+
+Use a business API key and an HMAC-SHA256 signature for server-to-server requests. The endpoint reference identifies operations that also accept a dashboard bearer session. Send one credential scheme per request; combining bearer authentication and an API key returns `401`.
+
+## Credentials and permissions
+
+| Value    | How to use it                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------- |
+| API key  | Send in `x-ledig-key`. Keep it in server-side configuration.                                               |
+| Secret   | Use it to calculate the signature. Never send it as a header.                                              |
+| Base URL | Set `LEDIG_API_BASE_URL` to the origin issued for your approved [environment](/introduction#environments). |
+
+Create and manage keys through the dashboard with an authorized business administrator. A business can have ten active, unexpired keys, with an expiry no more than six months away. Creating or rotating a key reveals its secret once. Rotation invalidates the previous secret immediately; revocation invalidates the key.
+
+Keep credentials in a server-side secret manager. Do not put them in browser or mobile code, repositories, URLs or logs.
+
+| Permission type        | Access                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Full access (`api:*`)  | Operations allowed by the business's current product access and controls.                                                          |
+| Read only (`api:read`) | Read operations, including the explicitly non-mutating `POST /v1/payouts/fee-estimate`. It does not authorize other POST requests. |
+| Custom                 | The individual scopes assigned to the key.                                                                                         |
+
+Each endpoint lists its required scope. A key cannot expand the business's product access or bypass recipient, compliance, limit or balance checks. API keys do not manage keys or authenticate dashboard users.
+
+## HMAC v1
+
+V1 remains supported for own-business requests. Send these three headers:
+
+| Header              | Value                                               |
+| ------------------- | --------------------------------------------------- |
+| `x-ledig-key`       | Your API key                                        |
+| `x-ledig-timestamp` | Current Unix time in seconds, as a ten-digit string |
+| `x-ledig-signature` | `v1=` followed by the base64 HMAC-SHA256 digest     |
+
+Build this exact UTF-8 string:
+
+```text
+{timestamp}.{METHOD}.{pathWithQuery}.{rawBody}
+```
+
+Use the uppercase method. Include the exact path and query string, beginning with `/`; do not include the scheme or hostname. For a request without a body, use the empty string. For JSON, serialize once, then sign and send that same string. Whitespace, query ordering and JSON key ordering affect the signature.
+
+Calculate the digest with your secret and standard base64 encoding. Timestamps must be within 300 seconds of server time. Synchronize your clock and sign each attempt with a current timestamp; authentication freshness does not replace an operation's replay controls.
+
+## Examples
+
+Set `LEDIG_API_BASE_URL`, `LEDIG_API_KEY` and `LEDIG_API_SECRET` through your local secret configuration. The examples have no default environment and make a read only. They report HTTP status and request ID without printing credentials or financial response data.
+
+<CodeGroup>
+
+```js Node.js
+import { createHmac } from "node:crypto";
+
+const { LEDIG_API_BASE_URL, LEDIG_API_KEY, LEDIG_API_SECRET } = process.env;
+if (!LEDIG_API_BASE_URL || !LEDIG_API_KEY || !LEDIG_API_SECRET) {
+  throw new Error(
+    "Set the three LEDIG_API configuration values before running.",
+  );
+}
+const origin = new URL(LEDIG_API_BASE_URL);
+if (
+  origin.protocol !== "https:" ||
+  origin.pathname !== "/" ||
+  origin.search ||
+  origin.hash ||
+  origin.username ||
+  origin.password
+) {
+  throw new Error(
+    "LEDIG_API_BASE_URL must be an HTTPS origin without a path or credentials.",
+  );
+}
+
+function sign(method, pathWithQuery, rawBody = "") {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const payload = `${timestamp}.${method.toUpperCase()}.${pathWithQuery}.${rawBody}`;
+  const signature = `v1=${createHmac("sha256", LEDIG_API_SECRET).update(payload, "utf8").digest("base64")}`;
+  return { timestamp, signature };
+}
+
+const path = "/v1/balances";
+const { timestamp, signature } = sign("GET", path);
+const response = await fetch(`${origin.origin}${path}`, {
+  headers: {
+    "x-ledig-key": LEDIG_API_KEY,
+    "x-ledig-timestamp": timestamp,
+    "x-ledig-signature": signature,
+  },
+});
+const result = await response.json(); // Use this response within your application.
+console.log({
+  httpStatus: response.status,
+  requestId: response.headers.get("x-request-id"),
+});
+```
+
+```python Python
+import base64
+import hashlib
+import hmac
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+base_url = os.environ["LEDIG_API_BASE_URL"].rstrip("/")
+api_key = os.environ["LEDIG_API_KEY"]
+secret = os.environ["LEDIG_API_SECRET"]
+origin = urllib.parse.urlsplit(base_url)
+if (origin.scheme != "https" or not origin.hostname or origin.path
+        or origin.query or origin.fragment or origin.username or origin.password):
+    raise ValueError("LEDIG_API_BASE_URL must be an HTTPS origin without a path or credentials.")
+
+def sign(method, path_with_query, raw_body=""):
+    timestamp = str(int(time.time()))
+    payload = f"{timestamp}.{method.upper()}.{path_with_query}.{raw_body}"
+    digest = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    return timestamp, "v1=" + base64.b64encode(digest).decode("ascii")
+
+path = "/v1/balances"
+timestamp, signature = sign("GET", path)
+request = urllib.request.Request(base_url + path, headers={
+    "x-ledig-key": api_key,
+    "x-ledig-timestamp": timestamp,
+    "x-ledig-signature": signature,
+})
+try:
+    response = urllib.request.urlopen(request)
+except urllib.error.HTTPError as error:
+    response = error
+with response:
+    result = json.load(response)  # Use this response within your application.
+    print({"httpStatus": response.status, "requestId": response.headers.get("x-request-id")})
+```
+
+</CodeGroup>
+
+For a JSON write, use `JSON.stringify(input)` once in Node.js, or a single JSON serialization in Python, and send those exact UTF-8 bytes with `Content-Type: application/json`. Keep the original operation identifiers and follow [operation-specific replay rules](/guides/idempotency) after an uncertain response.
+
+## Managed-business delegation
+
+Use HMAC v2 when an institution selects a managed child for financial operations. The signature binds the selection headers as well as the request.
+
+| Header                       | Delegated financial request                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `X-Ledig-Business-Id`        | The managed business whose funds and resources you are using.                              |
+| `X-Ledig-Acting-Business-Id` | Optional institution ID; when supplied, it must identify the key owner.                    |
+| `X-Ledig-Profile-Id`         | Compatibility selection header. Omit it, or keep it consistent with the selected business. |
+
+Build the v2 payload using compact JSON, in this exact order. This Node.js helper uses the `createHmac` import from the example above:
+
+```js
+function signV2(
+  secret,
+  timestamp,
+  method,
+  pathWithQuery,
+  rawBody,
+  selection = {},
+) {
+  const payload = JSON.stringify([
+    "ledig-hmac-v2",
+    timestamp,
+    method.toUpperCase(),
+    pathWithQuery,
+    rawBody,
+    selection.businessId?.trim() ?? "",
+    selection.profileId?.trim() ?? "",
+    selection.actingBusinessId?.trim() ?? "",
+  ]);
+  return `v2=${createHmac("sha256", secret).update(payload, "utf8").digest("base64")}`;
+}
+```
+
+The last three values are the actual selection-header values, with surrounding whitespace trimmed. An omitted header contributes `""`; do not substitute an inferred default. Identifier values remain case-sensitive. Send the resulting signature in `x-ledig-signature` with the same key and timestamp headers used for v1.
+
+V1 cannot select a managed child. V2 does not grant additional permissions: the relationship, selected business, scopes and product access must still be valid.
+
+<Note>
+  Parent-managed onboarding uses a different context. Keep the institution
+  selected and put the child ID in the onboarding path. V1 remains valid for
+  this own-parent context; v2 may also be used. Do not select a pending child as
+  the financial context to complete its onboarding. See [Managed
+  businesses](/guides/managed-businesses).
+</Note>
+
+## Troubleshooting
+
+For an authentication failure, check clock synchronization, method case, exact query string, body bytes and business selection in memory. Record only the request ID, HTTP status and method/path template in logs. Never log the full signing payload: it can contain personal information or financial instructions. Also exclude keys, signatures, authorization headers and upload or sharing URLs.
+
+See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for response codes and safe retries.

@@ -1,33 +1,44 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API reference"
+description: "Use the supported customer operations and their exact contracts."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+This reference is generated from the released customer API contract. The operation pages describe accepted requests, customer response fields, scopes and errors. Only operations listed here are covered by this reference.
 
-## Welcome
+## Environment and authentication
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+Configure the approved origin as `LEDIG_API_BASE_URL`. [Environments](/introduction#environments) explains engineering staging and the planned client sandbox and production release.
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+The interactive playground is disabled. Make requests from your own server using the [authentication examples](/auth/authentication), which sign the exact bytes sent. Do not paste credentials or signatures into the documentation website.
 
-## Authentication
+Most integration calls use HMAC authentication. Some operations also explicitly accept a dashboard bearer session. The endpoint's authorization alternatives are authoritative; a session is not a substitute on an HMAC-only route.
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+## Read an endpoint
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+| Section         | What it tells you                                                           |
+| --------------- | --------------------------------------------------------------------------- |
+| Method and path | The operation to call.                                                      |
+| Scope           | The API-key permission required; service eligibility is checked separately. |
+| Authorization   | Accepted credential schemes and signing headers.                            |
+| Request         | Supported parameters and body fields, including required values.            |
+| Response        | Customer fields, decimal amounts and status.                                |
+| Errors          | Failures to handle, including review, availability and limit errors.        |
+
+Use exact decimal arithmetic for amounts. Keep resource IDs, cursor values and edit revisions opaque. Do not depend on fields outside the published response schema.
+
+## Recommended flow
+
+1. Discover currency codes and precision with `GET /v1/currencies`. Indicative rates are a reference, not executable terms.
+2. Read [balances](/guides/balances) and set up [funding](/guides/funding). A funding request does not credit a balance.
+3. Save and review an external [recipient](/guides/recipients), or confirm an exact Ledig business ID for an internal transfer.
+4. Discover payment methods and [fee information](/guides/quotes#discover-payment-methods-and-fees), then create a quote with accepted amounts, fees and expiry.
+5. Execute the quote once and follow the [transfer](/guides/transfers). Reconcile processing status and recorded funds effects separately.
+6. Page through [transactions](/guides/transactions) for history.
+
+Institutions with the required service can use [managed-business onboarding](/guides/managed-businesses). That workflow has its own parent business context, edit revisions and upload completion steps.
+
+## Scope of this reference
+
+Dashboard login, API-key administration and staff controls are outside this machine API reference. Webhook availability and further integration requirements must be agreed for your environment; see [Webhooks](/hooks/webhooks).
+
+Use the [retry guide](/guides/idempotency) and [error guide](/errors/errors-and-troubleshooting) before retrying writes. A documentation update or a redirected old link does not grant additional access or change a payment's outcome.

@@ -1,0 +1,82 @@
+---
+title: "Recipients"
+description: "Save bank, mobile-money or crypto destinations and check payout eligibility."
+---
+
+A recipient is a saved external payout destination. Its type, required fields and available methods depend on the currency, country and your approved integration. Saving an address or account is not payment approval.
+
+## Use current destination requirements
+
+Use the configured destination details supplied through your approved integration setup or dashboard. Bank identifiers and mobile-money network values must come from the applicable current directory; do not invent codes or derive them from a bank name. The published reference currently includes crypto network discovery, but not a complete fiat bank or mobile-money directory API.
+
+Send destination values as strings in the `fields` array. Fiat recipients require `currency` and `country`. Updated fiat bank and mobile-money requirements, excluding ZAR, also require an explicit `legalEntityType`:
+
+| Entity       | Required fields         | Optional field |
+| ------------ | ----------------------- | -------------- |
+| `individual` | `firstName`, `lastName` | `middleName`   |
+| `business`   | `businessName`          | None           |
+
+Ledig derives the account holder name from those fields. Do not infer entity type from the name, and do not replace the supplied identity with a bank lookup result.
+
+## NGN bank example
+
+This is an illustrative request shape. Replace the account and bank values with the approved destination's real details and the bank code from the configured directory.
+
+```http
+POST /v1/recipients
+Content-Type: application/json
+```
+
+```json
+{
+  "type": "ngn_bank_transfer",
+  "currency": "NGN",
+  "country": "NG",
+  "legalEntityType": "business",
+  "fields": [
+    { "name": "businessName", "value": "Example Trading Ltd" },
+    { "name": "accountNumber", "value": "ACCOUNT_NUMBER" },
+    { "name": "bankCode", "value": "BANK_CODE_FROM_DIRECTORY" },
+    { "name": "bankName", "value": "BANK_NAME_FROM_DIRECTORY" }
+  ]
+}
+```
+
+NGN account numbers contain ten digits. For an individual, use `legalEntityType: "individual"` and replace `businessName` with `firstName`, optional `middleName` and `lastName`. Other currencies can require additional identifiers, ownership details or address fields; the NGN example is not a universal bank template.
+
+Manual bank entry is available only where the configured requirement permits it. Supply actual bank details using that requirement; do not fabricate a directory code. Eligibility remains specific to the saved destination and its available payment options.
+
+## Crypto destinations
+
+Call `GET /v1/recipient-requirements/crypto-networks` for the current external-recipient networks and supported assets. Use the exact returned network. This catalogue is separate from [deposit wallet options](/guides/funding#discover-crypto-deposit-networks).
+
+Illustrative request:
+
+```json
+{
+  "type": "crypto_address",
+  "fields": [
+    { "name": "network", "value": "NETWORK_FROM_RECIPIENT_OPTIONS" },
+    { "name": "address", "value": "RECIPIENT_ADDRESS" },
+    { "name": "accountName", "value": "Example Trading Ltd" }
+  ]
+}
+```
+
+`currency` and `country` can be omitted for `crypto_address`. If supplied, the currency must be supported on the selected network. Include a `memo` field when the destination requires it. Format validation does not prove address ownership or payout eligibility.
+
+Do not translate a mainnet alias into a testnet. Use only assets and networks returned for the approved environment; a testnet flag does not itself approve a payment.
+
+## Check readiness
+
+Read `GET /v1/recipients/{id}` after creation. `reviewStatus` can be `pending`, `approved`, `rejected` or `revoked`. An eligible automated review can approve a destination, so always use the returned status rather than assuming creation means either approved or pending.
+
+Use the current `active`, `blacklisted`, `destinationVersion` and `reviewedVersion` fields alongside the review status. Approval applies to the reviewed destination version; it does not grant unconditional permission to send. Quote and transfer validation recheck eligibility.
+
+Lists use [cursor pagination](/guides/pagination). `DELETE /v1/recipients/{id}` prevents future use while preserving past payment history.
+
+## Use the destination
+
+For an external payout, send the approved recipient ID when discovering payment options, then use its eligible `paymentMethodIds` value in the quote. See [Quotes](/guides/quotes).
+
+To pay another Ledig business, look up its exact business ID and create a quote with `payOut.type: "ledig"`. That flow does not create a saved recipient.

@@ -1,0 +1,45 @@
+---
+title: "Introduction"
+description: "Understand the API, access requirements and environments."
+---
+
+## What Ledig does
+
+Ledig supports three connected steps:
+
+1. **Collection:** receive funds through fiat accounts and crypto deposit addresses.
+2. **Conversion:** obtain a quote and convert between supported currencies.
+3. **Settlement:** pay an approved recipient or another eligible Ledig business.
+
+Your Ledig balance is the record of available and reserved funds. A receiving address, bank account or payment-processing status does not itself prove a balance credit or refund.
+
+## Get access
+
+Request an account through [ledig.io](https://www.ledig.io/contact) and complete the required business onboarding. An authorised business administrator manages API keys in the dashboard. Keep credentials on your server, in a secret manager.
+
+Before integration testing, agree the environment, approved business, enabled services and test scenario with Ledig. API permissions and product eligibility are separate: a key cannot enable a service or a payment route.
+
+## Environments
+
+| Environment         | Current position                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Engineering staging | Controlled integration testing by arrangement. The current origin is `https://api-staging.ledig.io`.               |
+| Client sandbox      | Planned alongside production. Access details and test scenarios will be documented when ready.                     |
+| Production          | Obtain confirmed release and access instructions from Ledig; this guide does not announce production availability. |
+
+<Warning>
+  Engineering staging is not a self-service client sandbox. Configured
+  operations can contact external services. Use only the approved business,
+  assets and test scenario; do not assume every operation is simulated or fund
+  an address without agreed instructions.
+</Warning>
+
+Runnable examples require `LEDIG_API_BASE_URL` to be set explicitly to the origin supplied for your integration. They do not choose an environment for you. Keep credentials and resource IDs separate between environments.
+
+The documentation API playground is disabled. A local or hosted docs preview only previews the website; it does not isolate API requests or funds.
+
+## Supported contract
+
+The [API reference](/api-reference/introduction) lists the operations covered by this documentation. Use those request and response shapes, and the scopes on each endpoint. Do not build against older routes or infer a new operation from a dashboard screen.
+
+If you are migrating an existing integration, contact [admin@ledig.io](mailto:admin@ledig.io) with the routes you use before replacing them. Older documentation links lead to the current reference; a redirect does not mean the old request shape remains interchangeable.

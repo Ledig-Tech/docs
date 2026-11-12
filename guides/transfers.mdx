@@ -1,0 +1,76 @@
+---
+title: "Transfers"
+description: "Execute accepted quote terms once and track processing and funds separately."
+---
+
+A transfer executes a [quote](/guides/quotes). The accepted quote supplies its amounts, fees and destination. Keep the quote ID and your reference before submitting.
+
+## Create a transfer
+
+Illustrative request:
+
+```http
+POST /v1/transfers
+Content-Type: application/json
+```
+
+```json
+{ "quoteId": "example_quote_id", "reference": "example_order_reference" }
+```
+
+`quoteId` is required. `reference` is optional and can contain up to 64 characters. On first creation, the quote must belong to the financial profile, remain pending and unexpired, and pass current balance, payment and eligibility checks. Available funds must cover the accepted total source debit, including fees.
+
+HTTP `201` acknowledges the transfer; it does not mean settlement has completed. Store the returned transfer ID and follow `GET /v1/transfers/{id}`. An internal Ledig payment uses the same create call after a quote with `payOut.type: "ledig"`.
+
+## Processing status
+
+| Status       | Meaning                                                             |
+| ------------ | ------------------------------------------------------------------- |
+| `pending`    | Accepted and waiting for a processing stage.                        |
+| `processing` | Execution is in progress.                                           |
+| `completed`  | Transfer processing completed.                                      |
+| `failed`     | Execution stopped; read the customer explanation and funds outcome. |
+| `reversed`   | A reversal was recorded; read the funds outcome.                    |
+
+Use `customerPresentation.label`, `message` and `actionRequired` for customer-facing progress. An optional `approval` state can show that a payment awaits review. The customer contract deliberately returns `approval.reason` as `null`; it is not an instruction to display private review notes.
+
+Processing status alone does not establish whether money was held, deducted, released or returned.
+
+## What happened to the funds
+
+When present, `balanceImpact` describes the recorded balance effect:
+
+| State                  | Display meaning                          |
+| ---------------------- | ---------------------------------------- |
+| `not_started`          | No recorded payment effect yet.          |
+| `on_hold`              | Funds are reserved.                      |
+| `deducted`             | A debit is recorded.                     |
+| `hold_released`        | The reservation was released.            |
+| `returned`             | A return is recorded.                    |
+| `return_pending`       | A return is being completed.             |
+| `finishing_completion` | Financial completion is being finalised. |
+| `still_checking`       | The funds outcome is not yet confirmed.  |
+
+Read its `lines` for per-currency amounts and effects. Do not turn `failed` into a refund message or treat a missing `balanceImpact` as zero impact. `still_checking` can accompany an otherwise readable transfer while the balance evidence is unavailable or incomplete.
+
+## Read and reconcile
+
+Poll `GET /v1/transfers/{id}` with bounded backoff. Honour `Retry-After` on rate limiting and avoid repeated create calls as a status check. There is no transfer-list route in this reference; use [Transactions](/guides/transactions) for history.
+
+Returned events may include a payout receipt identity or chain transaction hash. A hash identifies a transaction; it does not replace the transfer's current processing or funds status.
+
+## Retries
+
+`POST /v1/transfers` uses quote/reference replay within the same financial profile. It does not accept a generic `Idempotency-Key` contract.
+
+| Submitted identifiers                                          | Result                                                         |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| Existing quote ID, with no reference or the original reference | Return the original transfer.                                  |
+| Existing reference with a fresh quote ID                       | Return the original transfer; the fresh quote stays unused.    |
+| Existing quote ID with a new, unclaimed reference              | Return the original transfer without adding a reference alias. |
+| Quote ID and reference point to different existing transfers   | Return `409 IDEMPOTENCY_CONFLICT`; create nothing.             |
+| New quote ID and unused reference, or no reference             | Apply normal creation checks.                                  |
+
+For a retained transfer, replay happens before quote acceptance, balance checks or payout admission. Authentication, request validation and active-business checks still apply. Creation is serialized for matching identifiers, but clients must still handle errors during releases and reconcile an uncertain result.
+
+After a timeout, keep the original identifiers and use a fresh valid signature. Do not obtain a new quote merely to retry a possibly accepted payment. Contact [admin@ledig.io](mailto:admin@ledig.io) if the original outcome remains unresolved.

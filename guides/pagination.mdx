@@ -1,0 +1,57 @@
+---
+title: "Pagination"
+description: "Read cursor pages without losing filters or exposing duplicate records."
+---
+
+Paginated operations return customer records in `data` and supported cursors in `pagination`. For example:
+
+```json
+{
+  "status": "success",
+  "data": [],
+  "pagination": { "nextCursor": null }
+}
+```
+
+Cursor fields can be omitted when unavailable. Do not expect records or arbitrary metadata inside `pagination`.
+
+## Rules
+
+- Set `limit` to a supported page size, at most 100 for the lists below.
+- Pass the returned cursor exactly as received; do not build or decode it.
+- Keep filters and `sort` unchanged during a page walk. Changing them starts a new walk.
+- Stop when `nextCursor` is null or absent. `previousCursor` may be null or omitted when unavailable.
+- A cursor walk is not a frozen snapshot. Reconcile records by their IDs when processing a changing history.
+
+## Walk a list
+
+This illustrative helper assumes your `signedGet` function implements [authentication](/auth/authentication) with a fresh signature for the exact path and query:
+
+```js
+let cursor;
+const rows = [];
+
+do {
+  const query = new URLSearchParams({
+    limit: "100",
+    sort: "desc",
+    ...(cursor ? { cursor } : {}),
+  });
+  const response = await signedGet(`/v1/transactions?${query}`);
+  if (!response.ok)
+    throw new Error(`History read failed: HTTP ${response.status}`);
+  const page = await response.json();
+  rows.push(...page.data);
+  cursor = page.pagination?.nextCursor ?? null;
+} while (cursor);
+```
+
+Handle temporary errors and rate limits using a bounded read-retry policy. Do not log complete customer pages.
+
+| Endpoint                     | Pagination                                                                |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `GET /v1/transactions`       | Cursor pages.                                                             |
+| `GET /v1/quotes`             | Cursor pages.                                                             |
+| `GET /v1/recipients`         | Cursor pages.                                                             |
+| `GET /v1/wallets`            | Returns the profile's wallets without cursor pagination.                  |
+| `GET /v1/managed-businesses` | Returns the current managed-business directory without cursor pagination. |

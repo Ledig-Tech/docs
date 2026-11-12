@@ -1,0 +1,34 @@
+---
+title: "Retries and idempotency"
+description: "Resolve uncertain outcomes without creating replacement payments."
+---
+
+A timeout means the response is missing; the request may already have succeeded. Preserve the original request body, resource IDs and retry key before sending a write. Use fresh authentication timestamps and signatures for each retry.
+
+## Use the operation's replay contract
+
+| Operation                                  | Protection and retry rule                                                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/virtual-accounts`                | Requires `Idempotency-Key`. Reuse the original key and identical body. A new key or `intent: additional` is not a retry.                |
+| `POST /v1/wallets`                         | Requires `Idempotency-Key`. Reuse the original key and body; keep an uncertain issuance in reconciliation.                              |
+| `POST /v1/wallets/network`                 | Requires `Idempotency-Key`. Once `requestId` is known, use the status read instead of creating another request.                         |
+| `POST /v1/transfers`                       | Replays by the same quote ID or an explicitly supplied reference in the same financial profile. There is no generic idempotency header. |
+| `POST /v1/quotes`                          | Creates pricing terms, not a payment. Repeating creation can create another quote; it does not recover a possibly executed transfer.    |
+| `POST /v1/managed-businesses/applications` | Requires `Idempotency-Key`. Reuse the same key and business name; see [Managed businesses](/guides/managed-businesses).                 |
+| Other writes                               | Do not assume a generic key or automatic replay. Read the endpoint's contract and reconcile uncertainty before resubmitting.            |
+
+## Header-based operations
+
+Use a distinct, unpredictable `Idempotency-Key` for each intended operation, such as a generated UUID. Store it with the exact request body and selected profile. Do not log it together with sensitive body contents.
+
+A completed exact retry returns the retained result. A changed request under the same key returns a conflict; stop and resolve the mismatch. An unresolved original operation may still be pending or need review. Current authentication and eligibility checks continue to apply.
+
+## Transfer replay
+
+Retain the original quote ID and reference after a lost create response. Retrying those same identifiers can recover the original transfer. Reusing a reference with another quote does not create a replacement payment, and the other quote remains unused. Reusing an existing quote with a new, unclaimed reference does not add a new reference alias.
+
+If the quote and reference identify different transfers, Ledig returns `409 IDEMPOTENCY_CONFLICT`. Read the known transfer and reconcile the original identifiers before taking another action. See the complete [transfer replay rules](/guides/transfers#retries).
+
+## Timing and stopping
+
+For read requests, back off after temporary failures and honour `Retry-After` when supplied. For writes, retry only under the contract above, with a bounded attempt budget. A `4xx` response does not automatically justify changing the key or creating another payment. If an outcome stays uncertain, contact Ledig with the request ID and resource references.

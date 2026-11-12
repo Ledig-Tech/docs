@@ -1,34 +1,30 @@
-> **Customize this file**: Tailor this template to your project by noting specific contribution types you're looking for, adding a Code of Conduct, or adjusting the writing guidelines to match your style.
+# Contributing
 
-# Contribute to the documentation
+## Before you write
 
-Thank you for your interest in contributing to our documentation! This guide will help you get started.
+Read [AGENTS.md](AGENTS.md). This repository is public; the backend owns the API contract. Files remain public even when excluded from the website by `.mintignore`.
 
-## How to contribute
+## Workflow
 
-### Option 1: Edit directly on GitHub
+1. Branch from `main`; never push directly to it.
+2. Run `npm ci`, then `npm run dev`, and edit the MDX page.
+3. Run `npm run check`. Use `npm run check:content` when iterating on content checks.
+4. Open a pull request with the preview, a short summary and the actual validation results. Do not include private source links or internal evidence in this public discussion.
+5. Request review from the API owner for contract changes, or from Docs for wording.
+6. Before merging, confirm the intended Mintlify project and deployment mapping. A merge can publish immediately when that connection is active.
 
-1. Navigate to the page you want to edit
-2. Click the "Edit this file" button (the pencil icon)
-3. Make your changes and submit a pull request
+## What reviewers check
 
-### Option 2: Local development
+- Examples match the deployed customer contract and the approved environment.
+- `openapi/public.yaml` matches the source revision and SHA-256 digest in `openapi/source.json`; navigation covers exactly its operations.
+- Generated artifact updates receive guide and example review; copying a file does not establish release readiness.
+- No secrets, customer data, internal routes or provider details.
+- No private repository links or internal plans.
+- Links resolve and navigation still builds.
+- Removed pages have redirects in `docs.json`.
+- The change does not present legacy or simulated behaviour as current.
+- Engineering staging is not called the future customer sandbox, and examples have no implicit production target.
 
-1. Fork and clone this repository
-2. Install the Mintlify CLI: `npm i -g mint`
-3. Create a branch for your changes
-4. Make changes
-5. Navigate to the docs directory and run `mint dev`
-6. Preview your changes at `http://localhost:3000`
-7. Commit your changes and submit a pull request
+## Style
 
-For more details on local development, see our [development guide](development.mdx).
-
-## Writing guidelines
-
-- **Use active voice**: "Run the command" not "The command should be run"
-- **Address the reader directly**: Use "you" instead of "the user"
-- **Keep sentences concise**: Aim for one idea per sentence
-- **Lead with the goal**: Start instructions with what the user wants to accomplish
-- **Use consistent terminology**: Don't alternate between synonyms for the same concept
-- **Include examples**: Show, don't just tell
+Follow [AGENTS.md](AGENTS.md#writing). Keep pages short, use sentence case, and prefer a table over a long list when the content is tabular.

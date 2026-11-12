@@ -1,0 +1,26 @@
+---
+title: "Webhooks"
+description: "Confirm event delivery for your integration and reconcile with the read API."
+---
+
+Webhook availability depends on the environment and your business's enabled integration. The current published endpoint reference does not include a general webhook-management or event-payload contract. A website claim or an API deployment does not confirm delivery for your business.
+
+If you need events, agree enablement and the receiver contract with [admin@ledig.io](mailto:admin@ledig.io). Verify an authorised test delivery before relying on notifications. Do not guess event names, payload fields, signature rules or replay endpoints, and do not reuse API request signing as webhook verification.
+
+## Use the documented reads
+
+| What you are tracking       | Read                                  |
+| --------------------------- | ------------------------------------- |
+| Transfer or payout progress | `GET /v1/transfers/{id}`              |
+| Transaction history         | `GET /v1/transactions`                |
+| Spendable funds             | `GET /v1/balances`                    |
+| Network address setup       | `GET /v1/wallets/network/{requestId}` |
+| Existing receiving account  | `GET /v1/virtual-accounts/{currency}` |
+
+Poll with bounded backoff and honour rate-limit responses. Walk history using returned cursors. Reads show the documented customer state; they are not a promise that every internal state transition becomes a public event.
+
+## Before depending on delivery
+
+Confirm the exact event catalogue, raw-body signature verification, timestamp checks, secret rotation, delivery identifiers, duplicate handling, out-of-order events, retries and replay policy. Use resource reads to reconcile the current outcome even when notifications are enabled.
+
+Keep receiver secrets on your server. Do not log complete event bodies or signing values, and never use an unverified event to treat a payment as completed.
