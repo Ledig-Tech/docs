@@ -34,6 +34,8 @@ The fee estimator is a non-mutating POST available with `quotes:read`, including
 
 Show pricing availability and payout availability separately. A priced band may remain visible while sending is unavailable, and an out-of-range amount can return `amountWithinLimits: false`. Missing or ambiguous pricing must not become a zero fee. Fetch a quote to confirm executable terms; do not cache these private responses or calculate the authoritative fee in your client.
 
+For crypto payouts, `maximumAmount: null` with `minimumAmount: "0"` means there is no configured payout-route amount maximum. Treat `null` as an absent cap when displaying or filtering limits. Fiat payouts retain a bounded maximum. Continue to check payout availability and obtain a quote before sending.
+
 ## Create the quote
 
 Illustrative request using an approved recipient and a payment method returned by discovery:
