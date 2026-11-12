@@ -1,11 +1,11 @@
 ---
 title: "Errors and troubleshooting"
-description: "Response envelope, error codes, limits and retry rules."
+description: "Handle failures safely and preserve enough information to reconcile outcomes."
 ---
 
 ## Response envelope
 
-Every response uses the same envelope. Errors look like this:
+Most JSON operations use `status: success` with `data`, or this error shape:
 
 ```json
 {
@@ -15,78 +15,49 @@ Every response uses the same envelope. Errors look like this:
 }
 ```
 
-Successful responses use the same shape:
+Some operations return a message, no content or a route-specific response; use the endpoint reference. Health uses `{ "status": "ok" }`. Paginated lists add supported cursor fields. Error `details`, when present, contains the bounded information documented for that error, such as field-validation or allowance information.
 
-```json
-{
-  "status": "success",
-  "data": {}
-}
-```
+Use the HTTP status and `code` for control flow; messages can change. Never display or depend on raw debugging data.
 
-List operations add `pagination.nextCursor` and `pagination.previousCursor`. A successful operation with no payload returns `status` and `message` only.
+## Common errors
 
-Error messages are safe to show to an operator. They never contain stack traces, SQL, provider payloads or secrets.
+| Status        | Code or situation                                    | Action                                                                                                           |
+| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `400`         | `BAD_REQUEST`, `INVALID_JSON`                        | Correct the request shape, values or currency precision.                                                         |
+| `401`         | `AUTH_FAILED`                                        | Check credential state, timestamp and the exact signed bytes.                                                    |
+| `403`         | `MISSING_SCOPE`, `SERVICE_NOT_INCLUDED`, `FORBIDDEN` | Check permission, enabled product and selected business.                                                         |
+| `404`         | `NOT_FOUND`                                          | Confirm the resource ID and business context.                                                                    |
+| `409`         | `IDEMPOTENCY_CONFLICT`                               | Resolve a key/body mismatch or conflicting transfer quote/reference identities; do not invent a replacement key. |
+| `409`         | `INSUFFICIENT_BALANCE`                               | Confirm the total source debit, including fees, and available funds.                                             |
+| `409`         | `INSTANT_CONVERSION_LIMIT_EXCEEDED`                  | Read the returned safe allowance details and reconcile any earlier attempt.                                      |
+| `413` / `414` | Request body or URL too large                        | Reduce the request to the endpoint's limits.                                                                     |
+| `422`         | Payout transaction or monthly limit exceeded         | Review current business limits. Repeating unchanged input does not bypass the cap.                               |
+| `423`         | `COMPLIANCE_REVIEW_REQUIRED`                         | The operation needs review; do not create replacement payments to bypass it.                                     |
+| `429`         | `RATE_LIMITED`                                       | Honour `Retry-After` when supplied and reduce request rate.                                                      |
+| `500` / `503` | Temporary or unexpected service failure              | Back off reads; reconcile uncertain writes under their replay contract.                                          |
+| `501`         | `NOT_IMPLEMENTED`                                    | The requested operation is not available.                                                                        |
 
-## Error codes
-
-| Status | Code | Meaning |
-| --- | --- | --- |
-| `400` | `BAD_REQUEST` | The request is invalid |
-| `400` | `INVALID_JSON` | The body is not valid JSON |
-| `401` | `AUTH_FAILED` | Authentication failed. See [Authentication](/auth/authentication) |
-| `403` | `MISSING_SCOPE` | The key does not hold the required permission |
-| `403` | `SERVICE_NOT_INCLUDED` | The product is not enabled for the business |
-| `403` | `FORBIDDEN` | The business or profile is outside the credential's scope |
-| `404` | `NOT_FOUND` | The resource does not exist or is not visible to this profile |
-| `409` | `CONFLICT` | The request conflicts with current state |
-| `409` | `IDEMPOTENCY_CONFLICT` | The idempotency key was reused with a different request |
-| `409` | `INSUFFICIENT_BALANCE` | The source balance cannot cover the operation |
-| `413` | `PAYLOAD_TOO_LARGE` | The request body is larger than the limit |
-| `414` | `URI_TOO_LONG` | The request URL is larger than the limit |
-| `423` | `COMPLIANCE_REVIEW_REQUIRED` | The operation is held for compliance review |
-| `429` | `RATE_LIMITED` | A request limit was exceeded |
-| `500` | `INTERNAL_ERROR` | An unexpected server error |
-| `501` | `NOT_IMPLEMENTED` | The operation is not available |
-| `503` | `PROVIDER_UNAVAILABLE` | A dependency is temporarily unavailable |
-
-Codes are additive. Handle unknown codes as an error with the returned status.
-
-## Request IDs
-
-Error responses include an `x-request-id` header. Send your own `x-request-id` (8–128 characters, `A-Z a-z 0-9 . _ : -`) to correlate a request with your logs; a valid value is preserved.
-
-Include the request ID when you contact support. Do not include the API secret or the full signature.
-
-## Limits
-
-Current limits per credential:
-
-| Limit | Value |
-| --- | --- |
-| Requests per API key | 120 per minute |
-| Write requests per API key | 30 per minute |
-| Requests per business | 600 per minute |
-| Write requests per business | 120 per minute |
-| Requests per business per day | 50,000 |
-| JSON request body | 256 KB |
-| Request URL | 8,192 characters |
-
-A `429` response is authoritative even if your client believes it is under a limit. Limits can change; the response headers and status take precedence over this table.
+Codes are additive. Handle unknown codes as errors using their HTTP status. Individual endpoints document additional codes and limits.
 
 ## Retries
 
-- **`429`** — wait for the number of seconds in `Retry-After`, then retry.
-- **`5xx`** — retry with exponential backoff and jitter.
-- **`4xx`** — do not retry. Fix the request or the credential.
-- **Writes** — where an operation accepts `Idempotency-Key`, reuse the same value when retrying the same request. Never retry a write with a new key.
-- **Network failures** — treat them like a `5xx`, and reuse the same idempotency key.
+Read requests can use exponential backoff with jitter and a bounded attempt budget after temporary failures. A timeout or `5xx` on a write can occur after acceptance. It is not evidence that nothing happened.
+
+Follow [operation-specific retry rules](/guides/idempotency): retain the original wallet/account key and body, the network setup request ID, or the transfer quote/reference. Do not generate a new key or quote merely to escape an error. After changing a rejected request, first establish that the original attempt has no unresolved outcome.
+
+## Request IDs and safe diagnostics
+
+Retain the `x-request-id` returned by Ledig. A client-supplied request ID must use 8–128 characters from letters, digits, `.`, `_`, `:`, or `-`. A valid value is preserved.
+
+Record the request ID, time, environment label, HTTP method, path template, status and error code. For example, record `/v1/transfers/{id}` rather than a complete URL with sensitive query values.
+
+Never log credentials, signatures, complete signing payloads, complete request/response bodies, customer documents or upload capability URLs. Redact customer details before sharing diagnostics with support.
 
 ## Debugging checklist
 
-1. Confirm you are calling `https://api-staging.ledig.io`.
-2. Confirm the timestamp is current Unix time in seconds.
-3. Confirm you signed the exact body string you sent, including whitespace.
-4. Confirm the path includes the query string and starts with `/v1/`.
-5. Confirm the key holds the permission the operation requires.
-6. Contact [admin@ledig.io](mailto:admin@ledig.io) with the `x-request-id` and the request shape, never the secret.
+1. Confirm `LEDIG_API_BASE_URL` matches the [approved environment](/introduction#environments).
+2. Check the timestamp uses Unix seconds and the local clock is synchronized.
+3. Check that signing used the exact path, query and body sent; compare locally without logging their sensitive contents.
+4. Confirm the required scope and service are enabled for the selected business.
+5. For delegated requests, confirm HMAC v2 and the business-selection headers.
+6. Contact [admin@ledig.io](mailto:admin@ledig.io) with the request ID and redacted diagnostics if the outcome remains uncertain.

@@ -8,16 +8,16 @@ info:
   description: |-
     Public API for authenticated business integrations.
 
-    Preview: this document is generated from the combined contract and the response schemas are still being finalised. Only the operations listed here are public.
+    This document is generated from the reviewed customer contract. Only the operations listed here are public. Customer response schemas match the explicit runtime serializers; dynamic onboarding answers remain defined by their form requirements.
 
-    Most operations authenticate with a business API key and HMAC-SHA256. Managed-business operations also accept a dashboard bearer session. See https://docs.ledig.io/auth/authentication.
+    Business integrations authenticate with a business API key and HMAC-SHA256. Selected operations also accept a user access JWT where BearerAuth is listed, including managed-business onboarding, payout catalogue and fee estimates. See https://docs.ledig.io/auth/authentication.
   contact:
     name: Ledig
     email: admin@ledig.io
     url: https://docs.ledig.io
 servers:
   - url: https://api-staging.ledig.io
-    description: Sandbox
+    description: Staging — not a client sandbox
 security:
   - LedigApiKey: []
     LedigTimestamp: []
@@ -324,7 +324,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingApplication"
+                        $ref: "#/components/schemas/ClientOnboardingApplication"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -385,7 +385,7 @@ paths:
                           sections:
                             type: array
                             items:
-                              $ref: "#/components/schemas/OnboardingSectionSummary"
+                              $ref: "#/components/schemas/ClientOnboardingSectionSummary"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -431,7 +431,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingSectionState"
+                        $ref: "#/components/schemas/ClientOnboardingSectionState"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -483,7 +483,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingSectionState"
+                        $ref: "#/components/schemas/ClientOnboardingSectionState"
           headers:
             ETag:
               description: Quoted updatedAt revision to use on the next mutation.
@@ -544,7 +544,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingApplication"
+                        $ref: "#/components/schemas/ClientOnboardingApplication"
           headers:
             ETag:
               description: Quoted updatedAt revision to use on the next mutation.
@@ -665,7 +665,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingSectionState"
+                        $ref: "#/components/schemas/ClientOnboardingSectionState"
           headers:
             ETag:
               description: Quoted updatedAt revision to use on the next mutation.
@@ -730,7 +730,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingSectionState"
+                        $ref: "#/components/schemas/ClientOnboardingSectionState"
           headers:
             ETag:
               description: Quoted updatedAt revision to use on the next mutation.
@@ -890,26 +890,9 @@ paths:
                           - upload
                         properties:
                           document:
-                            type: object
-                            additionalProperties: true
+                            $ref: "#/components/schemas/ClientOnboardingDocument"
                           upload:
-                            type: object
-                            additionalProperties: true
-                            properties:
-                              maxSizeBytes:
-                                type: integer
-                                const: 52428800
-                              allowedMimeTypes:
-                                type: array
-                                items:
-                                  type: string
-                                  enum:
-                                    - application/pdf
-                                    - image/jpeg
-                                    - image/png
-                            required:
-                              - maxSizeBytes
-                              - allowedMimeTypes
+                            $ref: "#/components/schemas/ClientOnboardingUpload"
           headers:
             ETag:
               description: Next quoted application revision.
@@ -933,6 +916,87 @@ paths:
                 $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
+      x-scope: merchants:write
+  /v1/managed-businesses/{businessId}/onboarding/documents/{documentId}/complete:
+    parameters:
+      - in: path
+        name: businessId
+        required: true
+        schema:
+          type: string
+        description: Managed business ID; the institution remains selected in authentication headers.
+      - in: path
+        name: documentId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: "#/components/parameters/SelectedBusinessId"
+      - $ref: "#/components/parameters/ActingBusinessId"
+    post:
+      tags:
+        - Managed businesses
+      operationId: parentManagedCompleteOnboardingDocumentUpload
+      summary: Verify and retain a managed business document upload
+      description: Requires an active institutional parent, merchant service access and the current parent-managed relationship. Derives the application from that relationship. Verifies actual private object size, MIME and native checksum before retaining the uploaded receipt. Repeated completion retains the same receipt and final submission revalidates the object.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+          description: Quoted current application updatedAt; stale revisions return 409.
+      responses:
+        "200":
+          description: Document receipt persisted; returns data.document with uploaded or accepted status and the committed ETag revision.
+          headers:
+            ETag:
+              description: Next quoted application revision.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/ClientOnboardingDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: Stored document exceeds the 50 MiB limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/InvalidOnboardingDocument"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
       x-scope: merchants:write
   /v1/managed-businesses/{businessId}/onboarding/submit:
     parameters:
@@ -975,7 +1039,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/OnboardingApplication"
+                        $ref: "#/components/schemas/ClientOnboardingApplication"
           headers:
             ETag:
               description: Next quoted application revision.
@@ -991,6 +1055,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/InvalidOnboardingDocument"
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: merchants:write
@@ -1086,7 +1152,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/CurrencyCatalogEntry"
+                          $ref: "#/components/schemas/ClientCurrencyCatalogEntry"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1100,7 +1166,7 @@ paths:
         content: |-
           **Required scope:** `view_rates`
 
-          Returns the currencies enabled for the business and, for each crypto currency, the supported networks. Use it to discover currency codes, precision and network names before creating a quote or a recipient. The response is reference data; it does not include balances or rates.
+          Returns the currencies enabled for the business and, for each crypto currency, the supported networks. Use it to discover currency codes and precision. Wallet generation uses GET /v1/wallets/options, and external wallet recipients use GET /v1/recipient-requirements/crypto-networks. This general catalogue does not prove operational availability; it does not include balances or rates.
   /v1/rates:
     get:
       tags:
@@ -1137,7 +1203,7 @@ paths:
         content: |-
           **Required scope:** `view_rates`
 
-          Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. This route preserves the legacy field names, including the trailing space in `Last Updated `.
+          Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. This route preserves the existing field names, including the trailing space in `Last Updated `.
   /v1/balances:
     get:
       tags:
@@ -1160,7 +1226,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Balance"
+                          $ref: "#/components/schemas/ClientBalance"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1200,7 +1266,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Balance"
+                        $ref: "#/components/schemas/ClientBalance"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1219,7 +1285,7 @@ paths:
         - Deposit wallets
       operationId: createWallet
       summary: Create a deposit wallet
-      description: Issues a crypto deposit address for the profile.
+      description: Issues a crypto deposit address for one coin and network.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -1255,7 +1321,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Wallet"
+                        $ref: "#/components/schemas/ClientWallet"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1291,7 +1357,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Wallet"
+                          $ref: "#/components/schemas/ClientWallet"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1326,7 +1392,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Wallet"
+                        $ref: "#/components/schemas/ClientWallet"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1341,6 +1407,186 @@ paths:
           **Required scope:** `wallets:read`
 
           Returns one crypto deposit wallet. A missing wallet, a wallet owned by another profile, or a malformed ID returns `404`.
+  /v1/wallets/options:
+    get:
+      tags:
+        - Deposit wallets
+      operationId: listDepositWalletNetworks
+      summary: List available deposit-wallet networks
+      description: Lists available deposit networks and their supported assets.
+      responses:
+        "200":
+          description: Current deposit-wallet options.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CryptoNetworkOptions"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: wallets:read
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:read`
+
+          Returns current deposit networks and read-only supported asset labels. Creation checks availability again. An empty list means new wallet creation is unavailable; it does not hide existing wallets. Test networks require test tokens only.
+  /v1/wallets/network:
+    post:
+      tags:
+        - Deposit wallets
+      operationId: createNetworkWallet
+      summary: Create one deposit address for a network
+      description: Sets up one deposit address for a network's supported assets.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNetworkWalletRequest"
+      responses:
+        "201":
+          description: The complete receiving setup is ready.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NetworkWalletResult"
+        "202":
+          description: Setup is durably pending; retain requestId and the original idempotency key.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NetworkWalletResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: wallets:write
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:write`
+
+          Send network, nickname, optional memo and an Idempotency-Key. The server freezes the admitted asset set and creates one address. HTTP 201 means ready; HTTP 202 means pending. Retain the original key and body after timeouts. Once requestId is known, read GET /v1/wallets/network/{requestId}. Pending responses may include setupState: processing means continue polling the same request; review_required means Ledig must review it. Retain the requestId and do not create a replacement. This does not credit a balance.
+  /v1/wallets/network/{requestId}:
+    get:
+      tags:
+        - Deposit wallets
+      operationId: getNetworkWalletRequest
+      summary: Read a deposit-wallet setup request
+      description: Reads the current state of a wallet setup request.
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Current setup state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NetworkWalletResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: wallets:read
+      x-mint:
+        content: |-
+          **Required scope:** `wallets:read`
+
+          Returns ready or pending in data.status with HTTP 200. The read may reconcile the original provider operation and finish its local receiving records, but never creates another address. Missing or wrong-profile request IDs return 404. For pending requests, setupState may be processing or review_required. Continue polling the same request while processing; review_required needs Ledig review and cannot be resolved by repeatedly polling. Retain the requestId and do not create a replacement. Older pending responses may omit setupState.
+  /v1/recipient-requirements/crypto-networks:
+    get:
+      tags:
+        - Recipients
+      operationId: listRecipientCryptoNetworks
+      summary: List networks for external wallet recipients
+      description: Lists configured networks for external wallet recipients.
+      responses:
+        "200":
+          description: Configured recipient networks; networks may be empty.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CryptoNetworkOptions"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-scope: recipient_read
+      x-mint:
+        content: |-
+          **Required scope:** `recipient_read`
+
+          Returns configured networks and supported assets for saving an external wallet address. Deposit-provider activation does not control these options. The destination still requires normal validation, review and compliance checks. Testnet screening is not applicable rather than cleared and does not authorize payout. Responses are not cacheable.
   /v1/virtual-accounts/{currency}:
     parameters:
       - in: path
@@ -1367,7 +1613,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/VirtualAccount"
+                        $ref: "#/components/schemas/ClientVirtualAccount"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1389,7 +1635,7 @@ paths:
       tags:
         - Funding accounts
       operationId: createVirtualAccount
-      summary: Issue an additional receiving account with durable customer idempotency
+      summary: Continue receiving setup or explicitly request another account
       description: Requests a fiat receiving account with durable idempotency.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -1415,6 +1661,11 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 100
+                intent:
+                  type: string
+                  enum:
+                    - resume
+                    - additional
       responses:
         "200":
           description: The issued account or the original completed result.
@@ -1428,7 +1679,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/VirtualAccount"
+                        $ref: "#/components/schemas/ClientVirtualAccount"
         "202":
           description: Durable receiving request awaiting provider approval or admin action.
           content:
@@ -1516,7 +1767,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Recipient"
+                        $ref: "#/components/schemas/ClientRecipient"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1532,7 +1783,7 @@ paths:
         content: |-
           **Required scope:** `recipient_manage`
 
-          Saves a payout destination. `type` selects the destination requirement (`ngn_bank_transfer`, `brl_bank_transfer` or `crypto_address`) and `fields` carries the corridor-specific values. A new destination is `pending` and cannot be used until approved. When automated screening is enabled, a destination that passes every check may be approved without manual review. Adding a recipient is not approval.
+          Saves a payout destination. `type` selects the configured destination requirement and `fields` carries the corridor-specific values. A new destination is `pending` and cannot be used until approved. When automated screening is enabled, a destination that passes every check may be approved without manual review. Adding a recipient is not approval. For crypto_address (or its crypto alias), currency and country may be omitted; network, address and accountName belong in fields. A supplied currency is checked against that network. Fiat still requires its currency and country. Discover crypto options through GET /v1/recipient-requirements/crypto-networks; exact configured staging testnets remain subject to review and do not grant payout permission.
     get:
       tags:
         - Recipients
@@ -1556,7 +1807,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Recipient"
+                          $ref: "#/components/schemas/ClientRecipient"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1591,7 +1842,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Recipient"
+                        $ref: "#/components/schemas/ClientRecipient"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1625,7 +1876,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Recipient"
+                        $ref: "#/components/schemas/ClientRecipient"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1776,6 +2027,156 @@ paths:
           **Required scope:** `quotes:read`
 
           Lists the payout or collection methods enabled for a currency, with their fees, limits and stable `paymentMethodIds`. Pass one of those IDs in a quote's `payOut`. Use `type=withdraw` for payouts and `type=deposit` for collection options. Supply `amount` to exclude options whose limits do not cover it.
+  /v1/payouts/catalogue:
+    get:
+      tags:
+        - Payment options
+      operationId: getPayoutFeeCatalogue
+      summary: Read amount-independent payout fee bands for the authorized business
+      description: Lists payout fee bands independently of current sending availability.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - $ref: "#/components/parameters/SelectedBusinessId"
+        - $ref: "#/components/parameters/ActingBusinessId"
+        - $ref: "#/components/parameters/SelectedProfileId"
+        - in: query
+          name: currency
+          schema:
+            type: string
+            pattern: ^[A-Za-z][A-Za-z0-9]{1,11}$
+          description: Optional exact currency, trimmed and uppercased.
+        - in: query
+          name: payoutType
+          schema:
+            type: string
+            enum:
+              - fiat
+              - crypto
+      responses:
+        "200":
+          description: Complete currently publishable fee bands, independent of amount or send admission.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PayoutFeeCatalogue"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-required-service: quotes
+      x-scope: quotes:read
+  /v1/payouts/fee-estimate:
+    post:
+      tags:
+        - Payment options
+      operationId: estimatePayoutCustomerFee
+      summary: Read a current payout fee estimate without creating an executable quote
+      description: Estimates the selected payout fee without creating a quote or transfer. Read Only API keys can call this non-mutating POST; custom keys need quotes:read. Quotes service access is still required, and this grants no access to other POST operations.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - $ref: "#/components/parameters/SelectedBusinessId"
+        - $ref: "#/components/parameters/ActingBusinessId"
+        - $ref: "#/components/parameters/SelectedProfileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayoutFeeEstimateRequest"
+      responses:
+        "200":
+          description: Authoritative fee estimate or explicit safe pricing unavailability, with independent payout availability.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PayoutCustomerFeeEstimate"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-required-service: quotes
+      x-scope: quotes:read
+  /v1/quotes/payout-fees:
+    get:
+      tags:
+        - Quotes
+      operationId: listCustomerPayoutFeeSchedule
+      summary: List the current payout fee schedule
+      description: Lists your current payout fee schedule by currency, method and network.
+      responses:
+        "200":
+          description: Current applicable customer fee terms.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CustomerPayoutFeeScheduleRow"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-scope: quotes:read
+      x-mint:
+        content: |-
+          **Required scope:** `quotes:read`
+
+          Lists the current fee formula for available payout methods and Ledig transfers, grouped by currency and crypto network where applicable. Your business pricing is included. A missing configured fee is shown as Confirmed when you send. This read creates no quote or reservation. Create a quote to confirm the fee for your amount and recipient. Responses are private and must not be cached.
   /v1/quotes:
     post:
       tags:
@@ -1802,7 +2203,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Quote"
+                        $ref: "#/components/schemas/ClientQuote"
         "400":
           description: Invalid request, unsupported amount precision or invalid provider mobile network.
           content:
@@ -1827,7 +2228,7 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          description: The selected provider conversion route is unavailable. Missing adapters, fresh capacity or required execution policy fail closed; no fallback global route is substituted.
+          description: The selected provider conversion route is unavailable. Missing adapters, fresh capacity or required execution policy fail closed; no fallback global route is substituted. INSTANT_CONVERSION_LIMIT_EXCEEDED preserves the caller’s safe daily/monthly allowance details; a new eligible quote may be needed after the original request outcome is resolved.
           content:
             application/json:
               schema:
@@ -1836,6 +2237,12 @@ paths:
                 status: error
                 code: RATE_PROVIDER_CONVERSION_UNAVAILABLE
                 message: Conversion is not available for this route.
+        "423":
+          description: "COMPLIANCE_REVIEW_REQUIRED: the requested payment is held for review. No private review or provider detail is returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
         "503":
@@ -1844,12 +2251,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-              examples:
-                mobileNetworksUnavailable:
-                  value:
-                    status: error
-                    code: PROVIDER_UNAVAILABLE
-                    message: Flutterwave mobile networks could not be verified.
       x-scope: quotes:write
       x-mint:
         content: |-
@@ -1879,7 +2280,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Quote"
+                          $ref: "#/components/schemas/ClientQuote"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1914,7 +2315,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Quote"
+                        $ref: "#/components/schemas/ClientQuote"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1964,13 +2365,19 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Transfer"
+                        $ref: "#/components/schemas/ClientTransfer"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          description: IDEMPOTENCY_CONFLICT when quote and reference identify different existing transfers. No replacement quote is consumed. INSTANT_CONVERSION_LIMIT_EXCEEDED preserves the caller’s safe daily/monthly allowance details; a new eligible quote may be needed after the original request outcome is resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "422":
           description: Payout USD admission exceeds the effective transaction or monthly cap. When enforcement is enabled, the quote claim and transfer are rolled back before dispatch. Read GET /v1/balances/summary for current allowance; deterministic cap errors are not provider failures.
           content:
@@ -1988,6 +2395,12 @@ paths:
                     status: error
                     code: PAYOUT_MONTHLY_LIMIT_EXCEEDED
                     message: This payout exceeds the business monthly allowance.
+        "423":
+          description: "COMPLIANCE_REVIEW_REQUIRED: the requested payment is held for review. No private review or provider detail is returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
         "503":
@@ -2018,7 +2431,7 @@ paths:
         content: |-
           **Required scope:** `transfers:write`
 
-          Executes a quote. The quote must be pending, unexpired and owned by the profile, and the source balance must cover the amount. The quote is consumed in the same transaction that creates the transfer, so it cannot be used twice. There is no idempotency key on this route; if the create response is lost, contact support with the quote ID before retrying.
+          Executes a quote. For a new transfer, the quote must be pending, unexpired and owned by the profile, and the source balance must cover the amount. There is no Idempotency-Key header on this route. Retain the same quoteId and any original reference, and retry with a fresh signature and timestamp. After authentication, request validation and active-business checks, an existing transfer matching the quoteId or explicit reference within the same financial profile is returned before quote acceptance, balance checks and payout admission. A reused reference with a fresh quoteId returns the original transfer and leaves the fresh quote untouched. A reused quoteId with a new unclaimed reference returns the original transfer without adding a reference alias. If the quoteId and reference identify different existing transfers, the request returns 409 IDEMPOTENCY_CONFLICT. Concurrent requests for the same quote or reference are serialized; retries do not create another transfer or dispatch. A new quoteId with an unused reference, or with no reference, is a new request.
   /v1/transfers/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -2041,7 +2454,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Transfer"
+                        $ref: "#/components/schemas/ClientTransfer"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2071,6 +2484,12 @@ paths:
           name: status
           schema:
             type: string
+          description: Underlying financial status.
+        - in: query
+          name: displayStatus
+          schema:
+            type: string
+          description: Current customer display status; filters before pagination.
         - in: query
           name: currency
           schema:
@@ -2131,7 +2550,7 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Transaction"
+                          $ref: "#/components/schemas/ClientTransaction"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2168,7 +2587,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/Transaction"
+                        $ref: "#/components/schemas/ClientTransaction"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2244,23 +2663,87 @@ components:
           type:
             - string
             - "null"
-    OnboardingApplication:
+    ClientOnboardingApplication:
       type: object
-      additionalProperties: true
-      description: Onboarding application state. Service-owned shape; core fields shown.
+      additionalProperties: false
+      required:
+        - id
+        - businessProfileId
+        - referenceCode
+        - status
+        - applicantType
+        - countryId
+        - currentSection
+        - progressPercent
+        - sections
+        - submittedAt
+        - reviewedAt
+        - reviewReason
+        - approvedAt
+        - createdAt
+        - updatedAt
       properties:
-        applicationId:
+        id:
           type: string
+        businessProfileId:
+          type: string
+        referenceCode:
+          type: string
+        status:
+          $ref: "#/components/schemas/ApplicationStatus"
+        applicantType:
+          type: string
+          const: business
         businessType:
           type: string
           enum:
             - standard
             - institutional
+        countryId:
+          type:
+            - string
+            - "null"
+        currentSection:
+          type: string
+        progressPercent:
+          type: integer
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientOnboardingSectionSummary"
+        submittedAt:
+          type:
+            - string
+            - "null"
+        reviewedAt:
+          type:
+            - string
+            - "null"
+        reviewReason:
+          type:
+            - string
+            - "null"
+          description: Existing customer correction instructions only while status is changes_requested. Other decision reasons are not published.
+        approvedAt:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        documentDelivery:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientOnboardingDocumentDelivery"
         verification:
           type:
             - object
             - "null"
-          description: Safe current verification summary returned by the application GET endpoint.
+          additionalProperties: false
+          required:
+            - attemptId
+            - subjects
           properties:
             attemptId:
               type: string
@@ -2268,6 +2751,12 @@ components:
               type: array
               items:
                 type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - kind
+                  - status
+                  - required
                 properties:
                   id:
                     type: string
@@ -2288,18 +2777,9 @@ components:
                       - changes_requested
                   required:
                     type: boolean
-        status:
-          $ref: "#/components/schemas/ApplicationStatus"
-        currentSection:
-          type: string
-        progressPercent:
-          type: integer
-        sections:
-          type: array
-          items:
-            $ref: "#/components/schemas/OnboardingSectionSummary"
-    OnboardingSectionSummary:
+    ClientOnboardingSectionSummary:
       type: object
+      additionalProperties: false
       required:
         - sectionKey
         - status
@@ -2313,17 +2793,22 @@ components:
             - regulation
             - documents
             - review
+        sectionOrder:
+          type: integer
         status:
           type: string
         data:
-          type: object
-          additionalProperties: true
-    OnboardingSectionState:
+          $ref: "#/components/schemas/ClientOnboardingSectionData"
+    ClientOnboardingSectionState:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       required:
         - sectionKey
+        - sectionOrder
         - status
+        - currentSection
+        - progressPercent
+        - data
       properties:
         sectionKey:
           type: string
@@ -2336,8 +2821,7 @@ components:
         progressPercent:
           type: integer
         data:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/ClientOnboardingSectionData"
     RelatedPartyInput:
       type: object
       additionalProperties: true
@@ -2411,6 +2895,138 @@ components:
           type:
             - string
             - "null"
+    ClientOnboardingDocument:
+      type: object
+      additionalProperties: false
+      description: Applicant-visible document receipt. Private storage keys, uploader/reviewer identities and provider references are not returned.
+      required:
+        - id
+        - applicationId
+        - businessProfileId
+        - requirementType
+        - originalFileName
+        - mimeType
+        - checksumSha256
+        - source
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        applicationId:
+          type:
+            - string
+            - "null"
+        businessProfileId:
+          type: string
+        requirementType:
+          type: string
+        documentKind:
+          type: string
+        originalFileName:
+          type: string
+        mimeType:
+          type: string
+        checksumSha256:
+          type: string
+        sizeBytes:
+          type: integer
+        source:
+          type: string
+          enum:
+            - admin_upload
+            - business_upload
+            - manual_migration
+        status:
+          type: string
+          enum:
+            - pending_upload
+            - uploaded
+            - accepted
+            - rejected
+            - needs_replacement
+            - expired
+        uploadedAt:
+          type: string
+        reviewedAt:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        validation:
+          type: object
+          additionalProperties: false
+          required:
+            - status
+            - version
+            - checksumSha256
+            - mimeType
+            - validatedAt
+          properties:
+            status:
+              type: string
+              const: valid
+            version:
+              type: string
+            checksumSha256:
+              type: string
+            mimeType:
+              type: string
+            validatedAt:
+              type: string
+            pageCount:
+              type: integer
+        validationFailure:
+          type: object
+          additionalProperties: false
+          required:
+            - version
+            - checksumSha256
+            - mimeType
+            - failedAt
+            - reasonCode
+          properties:
+            version:
+              type: string
+            checksumSha256:
+              type: string
+            mimeType:
+              type: string
+            failedAt:
+              type: string
+            reasonCode:
+              type: string
+              enum:
+                - document_unreadable
+                - document_type_mismatch
+                - document_password_protected
+                - document_limits_exceeded
+    ClientOnboardingUpload:
+      type: object
+      additionalProperties: false
+      description: Short-lived upload capability for the authenticated applicant. Use the exact returned headers and do not log or persist the URL.
+      required:
+        - uploadUrl
+        - requiredHeaders
+        - expiresAt
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+        maxSizeBytes:
+          type: integer
+        allowedMimeTypes:
+          type: array
+          items:
+            type: string
     Error:
       type: object
       required:
@@ -2425,6 +3041,81 @@ components:
           type: string
         code:
           type: string
+        details:
+          description: "Only reviewed remediation details are public: onboarding validation for422 BAD_REQUEST, current_password_incorrect for400 BAD_REQUEST, or the caller’s conversion allowance for409 INSTANT_CONVERSION_LIMIT_EXCEEDED. General exception, provider and compliance review details are never serialized."
+          oneOf:
+            - type: object
+              additionalProperties: false
+              description: Optional allowlisted onboarding file-validation details for HTTP 422 BAD_REQUEST only. General exception details and provider payloads are never serialized here.
+              required:
+                - validationCode
+                - reasonCode
+                - retryable
+              properties:
+                validationCode:
+                  type: string
+                  enum:
+                    - document_unreadable
+                    - document_type_mismatch
+                    - document_password_protected
+                    - document_limits_exceeded
+                reasonCode:
+                  type: string
+                  enum:
+                    - document_unreadable
+                    - document_type_mismatch
+                    - document_password_protected
+                    - document_limits_exceeded
+                retryable:
+                  type: boolean
+                  const: false
+                documentId:
+                  type: string
+                  maxLength: 128
+                requirementType:
+                  type: string
+            - type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  const: current_password_incorrect
+            - type: object
+              additionalProperties: false
+              required:
+                - period
+                - sourceCurrency
+                - requested
+                - remaining
+                - limit
+                - resetsAt
+                - timezone
+              properties:
+                period:
+                  type: string
+                  enum:
+                    - daily
+                    - monthly
+                sourceCurrency:
+                  type: string
+                  pattern: ^[A-Z][A-Z0-9]{1,19}$
+                requested:
+                  type: string
+                  pattern: ^(0|[1-9][0-9]*)(\.[0-9]+)?$
+                remaining:
+                  type: string
+                  pattern: ^(0|[1-9][0-9]*)(\.[0-9]+)?$
+                limit:
+                  type: string
+                  pattern: ^(0|[1-9][0-9]*)(\.[0-9]+)?$
+                resetsAt:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                  const: UTC
     ManagedBusiness:
       type: object
       additionalProperties: false
@@ -2487,24 +3178,32 @@ components:
             - invitation
             - parent_managed
           description: Parent-managed applications can be completed through the institution without applicant credentials.
-    CurrencyCatalogEntry:
+    ClientCurrencyCatalogEntry:
       type: object
-      additionalProperties: true
-      description: Currency catalogue entry with its supported networks.
+      additionalProperties: false
+      description: Reference data for the customer. Empty metadata objects retain the existing shape without publishing internal configuration.
       required:
         - code
+        - name
+        - type
+        - status
+        - description
+        - decimal
+        - addressRegex
+        - meta
+        - networks
       properties:
         code:
           type: string
         name:
+          type: string
+        status:
           type: string
         type:
           type: string
           enum:
             - fiat
             - crypto
-        status:
-          type: string
         description:
           type:
             - string
@@ -2517,27 +3216,36 @@ components:
           type:
             - string
             - "null"
+        meta:
+          type: object
+          additionalProperties: false
+          properties: {}
         networks:
           type: array
           items:
             type: object
-            additionalProperties: true
+            additionalProperties: false
             required:
               - chain
               - name
               - addressRegex
               - status
+              - meta
             properties:
               chain:
                 type: string
               name:
                 type: string
+              status:
+                type: string
               addressRegex:
                 type:
                   - string
                   - "null"
-              status:
-                type: string
+              meta:
+                type: object
+                additionalProperties: false
+                properties: {}
     IndicativeRate:
       type: object
       additionalProperties: false
@@ -2559,12 +3267,14 @@ components:
           type: number
         "Last Updated ":
           type: string
-    Balance:
+    ClientBalance:
       type: object
-      additionalProperties: true
-      description: Ledger balance for one currency.
+      additionalProperties: false
+      description: Customer Ledger balance. No service-owned bookkeeping fields are returned.
       required:
         - currency
+        - available
+        - reserved
       properties:
         currency:
           type: string
@@ -2572,12 +3282,20 @@ components:
           type: string
         reserved:
           type: string
-    Wallet:
+    ClientWallet:
       type: object
-      additionalProperties: true
-      description: Crypto deposit address.
+      additionalProperties: false
+      description: Customer deposit address and memo. Provisioning provider bindings are excluded.
       required:
         - id
+        - profileId
+        - nickname
+        - coin
+        - network
+        - address
+        - memo
+        - createdAt
+        - updatedAt
       properties:
         id:
           type: string
@@ -2592,17 +3310,96 @@ components:
         address:
           type: string
         memo:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    CryptoNetworkOptions:
+      type: object
+      additionalProperties: false
+      required:
+        - networks
+      properties:
+        networks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoNetworkOption"
+    CreateNetworkWalletRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - nickname
+        - network
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 255
+        network:
+          type: string
+          minLength: 1
+          description: A network returned by the deposit-specific options endpoint.
+        memo:
+          type: string
+    NetworkWalletResult:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - status
+        - network
+        - address
+        - supportedAssets
+        - wallets
+      properties:
+        requestId:
+          type: string
+          description: Stable Ledig request reference scoped to the authenticated profile.
+        status:
+          type: string
+          enum:
+            - ready
+            - pending
+        network:
+          type: string
+        address:
           type:
             - string
             - "null"
-        createdAt:
+          description: Null until all receiving records are committed.
+        supportedAssets:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoNetworkAsset"
+        wallets:
+          type: array
+          description: Empty while pending. A ready result includes the complete admitted receiving set on the shared address.
+          items:
+            $ref: "#/components/schemas/NetworkReceivingWallet"
+        setupState:
           type: string
-    VirtualAccount:
+          enum:
+            - processing
+            - review_required
+          description: Additive pending-setup detail. review_required means staff must resolve the setup; do not keep polling it as ordinary processing. Omitted when ready. status retains pending/ready compatibility.
+    ClientVirtualAccount:
       type: object
-      additionalProperties: true
-      description: Fiat receiving account.
+      additionalProperties: false
+      description: Customer receiving account. Issuance provider and provider customer/reference identifiers are not exposed.
       required:
         - id
+        - profileId
+        - currencyCode
+        - accountName
+        - accountNumber
+        - bankName
+        - bankCode
+        - status
+        - disabledAt
+        - meta
+        - createdAt
+        - updatedAt
       properties:
         id:
           type: string
@@ -2618,26 +3415,45 @@ components:
           type: string
         bankCode:
           type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
         status:
           type: string
           enum:
             - active
             - disabled
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
+        disabledAt:
+          type:
+            - string
+            - "null"
+        meta:
+          $ref: "#/components/schemas/ClientFundingInstructions"
     CreateRecipientRequest:
       type: object
       additionalProperties: false
       required:
-        - currency
         - type
       allOf:
         - if:
             properties:
               type:
-                const: ledig
+                enum:
+                  - crypto_address
+                  - crypto
+            required:
+              - type
+          else:
+            required:
+              - currency
+        - if:
+            properties:
+              type:
+                enum:
+                  - ledig
+                  - crypto_address
+                  - crypto
             required:
               - type
           else:
@@ -2650,10 +3466,14 @@ components:
       properties:
         currency:
           type: string
+          minLength: 1
+          description: Optional only for crypto_address or crypto. If supplied, it must be a supported asset on the selected network. Fiat requirements remain unchanged.
         country:
           type: string
+          description: Optional for crypto_address, crypto and legacy ledig. Crypto defaults to an empty country because the destination is network-scoped.
         type:
           type: string
+          description: Requirement id. crypto is an additive alias for crypto_address.
         fields:
           type: array
           items:
@@ -2680,47 +3500,43 @@ components:
           description: Manual bank entry is accepted only where the requirement advertises it and derives an immutable Ledig-only payout restriction. ZAR is excluded.
         oneTime:
           type: boolean
-    Recipient:
+    ClientRecipient:
       type: object
-      additionalProperties: true
-      description: Saved payout destination.
+      additionalProperties: false
+      description: Saved customer destination, display metadata and approval state. Review versions remain available for existing clients; internal hashes and review evidence are excluded.
       required:
         - id
+        - profileId
+        - recipientRequirementId
+        - fields
+        - is3rdParty
+        - oneTime
+        - blacklisted
+        - deletedAt
+        - active
+        - object
+        - fieldsDetail
+        - createdAt
+        - updatedAt
+        - reviewStatus
+        - destinationVersion
+        - reviewedVersion
       properties:
         id:
           type: string
         profileId:
           type: string
-        currency:
-          type: string
-        country:
-          type: string
-        type:
-          type: string
         recipientRequirementId:
           type: string
-        legalEntityType:
+        createdAt:
           type: string
-          enum:
-            - individual
-            - business
-        bankDetailsSource:
+        updatedAt:
           type: string
-          enum:
-            - directory
-            - manual
-        payoutExecutionRestriction:
-          type: string
-          enum:
-            - ledig_only
-          readOnly: true
-          description: Server-derived recipient restriction. The client cannot clear it or select provider execution for this destination.
         requirement:
           type:
             - object
             - "null"
           additionalProperties: false
-          description: Owning requirement metadata for this saved destination, including hidden or inactive definitions. Null when unavailable; older deployments may omit it. Empty currencies means no currency restriction. This does not establish recipient approval, provider support or payout eligibility.
           required:
             - name
             - category
@@ -2741,6 +3557,73 @@ components:
           type: object
           additionalProperties:
             type: string
+          description: The owner's saved destination fields. Keys depend on the recipient requirement; arbitrary service metadata is excluded.
+        destinationScope:
+          type: object
+          additionalProperties: false
+          required:
+            - network
+          properties:
+            network:
+              type: string
+            assets:
+              type: array
+              items:
+                type: string
+        legalEntityType:
+          type: string
+          enum:
+            - individual
+            - business
+        bankDetailsSource:
+          type: string
+          enum:
+            - directory
+            - manual
+        payoutExecutionRestriction:
+          type: string
+          enum:
+            - ledig_only
+        is3rdParty:
+          type: boolean
+        oneTime:
+          type: boolean
+        blacklisted:
+          type: boolean
+        active:
+          type: boolean
+        deletedAt:
+          type:
+            - string
+            - "null"
+        object:
+          type: string
+          const: recipients
+        fieldsDetail:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - name
+              - displayName
+              - value
+              - required
+              - visible
+              - copyable
+            properties:
+              name:
+                type: string
+              displayName:
+                type: string
+              value:
+                type: string
+              required:
+                type: boolean
+              visible:
+                type: boolean
+              copyable:
+                type: boolean
         reviewStatus:
           type: string
           enum:
@@ -2748,15 +3631,14 @@ components:
             - approved
             - rejected
             - revoked
-          description: Review state for this saved destination. Approval applies only to its current destination version.
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-        active:
-          type: boolean
-        oneTime:
-          type: boolean
+        destinationVersion:
+          type: integer
+          minimum: 1
+        reviewedVersion:
+          type:
+            - integer
+            - "null"
+          minimum: 1
     CursorPage:
       allOf:
         - $ref: "#/components/schemas/Success"
@@ -2823,6 +3705,46 @@ components:
         feeQuoteRequired:
           type: boolean
           description: True when discovery lacks context or fee pricing cannot price this option yet (currency, payment method or network not configured); obtain a final quote before confirmation.
+        deliveryOptions:
+          type: array
+          description: Authoritative customer delivery choices. Empty when no eligible unambiguous route exists. Legacy names and paymentMethodIds remain compatible, but new clients must use these choices. Recipient types refer to requirement.type categories, not requirement IDs.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - paymentMethodId
+              - channel
+              - label
+              - recipientTypes
+            properties:
+              paymentMethodId:
+                type: string
+              channel:
+                type: string
+              label:
+                type: string
+                description: Customer display label. The internal `ledig` method is labelled "Send via the Ledig network"; ids never change with wording.
+              description:
+                type: string
+                maxLength: 160
+                description: Optional plain-text explanation for customer screens (for `ledig`, "Send to another Ledig business using its business ID.").
+              chain:
+                type: string
+                description: Exact execution key; submit unchanged on quotes. feeChain separately identifies matching fee rows.
+              canonicalNetwork:
+                type: string
+                description: Canonical shared network identity for matching recipient destinationScope.network. Mainnet aliases never refer to Sepolia.
+              networkName:
+                type: string
+              recipientTypes:
+                type: array
+                items:
+                  type: string
+              feeChain:
+                type: string
+                description: Exact fee identity, which may be a retained alias for the same canonical network. Not a replacement execution key.
+              testnet:
+                type: boolean
         feeQuotes:
           type: array
           description: Business-aware per-method discovery; the executable quote remains authoritative.
@@ -2842,6 +3764,117 @@ components:
                 type: string
               chain:
                 type: string
+    PayoutFeeCatalogue:
+      type: object
+      additionalProperties: false
+      required:
+        - pricedAt
+        - rows
+      properties:
+        pricedAt:
+          type: string
+          format: date-time
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayoutFeeCatalogueRow"
+    PayoutFeeEstimateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - payoutType
+        - amount
+      properties:
+        currency:
+          type: string
+          pattern: ^[A-Za-z][A-Za-z0-9]{1,11}$
+        payoutType:
+          type: string
+          enum:
+            - fiat
+            - crypto
+        amount:
+          type: string
+          pattern: ^(?:0|[1-9]\d{0,18})(?:\.\d{1,18})?$
+          description: Must be greater than zero and fit the selected currency precision.
+        network:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Required exact crypto network identity; absent for fiat.
+        bandId:
+          type: string
+          pattern: ^pbd_[a-f0-9]{32}$
+    PayoutCustomerFeeEstimate:
+      type: object
+      additionalProperties: false
+      required:
+        - pricedAt
+        - currency
+        - payoutType
+        - amount
+        - amountWithinLimits
+        - pricing
+        - payoutAvailability
+      properties:
+        pricedAt:
+          type: string
+          format: date-time
+        currency:
+          type: string
+        payoutType:
+          type: string
+          enum:
+            - fiat
+            - crypto
+        canonicalNetwork:
+          type: string
+        amount:
+          type: string
+        bandId:
+          type: string
+          pattern: ^pbd_[a-f0-9]{32}$
+        minimumAmount:
+          type: string
+        maximumAmount:
+          type: string
+        amountWithinLimits:
+          type: boolean
+        pricing:
+          oneOf:
+            - $ref: "#/components/schemas/PayoutCustomerFeeEstimateAvailable"
+            - $ref: "#/components/schemas/PayoutCustomerFeeUnavailable"
+        payoutAvailability:
+          $ref: "#/components/schemas/PayoutCatalogueAvailability"
+    CustomerPayoutFeeScheduleRow:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - currency
+        - payoutType
+        - methodName
+        - feeDescription
+      properties:
+        id:
+          type: string
+          description: Stable customer display key, not a payment method instruction.
+        currency:
+          type: string
+        payoutType:
+          type: string
+          enum:
+            - fiat
+            - crypto
+            - ledig
+        methodName:
+          type: string
+        networkName:
+          type: string
+        feeDescription:
+          type: string
+          description: Current customer fee formula including fixed and percentage charges, bounds and any applicable fee adjustment. The final quote confirms the amount.
     CreateQuoteRequest:
       type: object
       additionalProperties: false
@@ -2946,43 +3979,39 @@ components:
               allOf:
                 - $ref: "#/components/schemas/PayoutDocumentId"
               description: Optional uploaded invoice reference. Required only when the selected payment option declares invoiceRequired. Must resolve to a verified object owned by the effective financial profile.
-    Quote:
+    ClientQuote:
       type: object
-      additionalProperties: true
-      description: Executable pricing terms and expiry.
+      additionalProperties: false
+      description: Executable customer terms. Amounts are decimal strings; totalSourceDebitAmount includes the accepted conversion and payout fees.
       required:
         - id
+        - profileId
+        - reference
+        - sourceCurrency
+        - destinationCurrency
+        - sourceAmount
+        - destinationAmount
+        - rate
+        - createdAt
+        - updatedAt
+        - feeAmount
+        - feeCurrency
+        - sourceDebitAmount
+        - payoutFeeAmount
+        - payoutFeeCurrency
+        - payoutFeeSourceAmount
+        - totalFeeAmount
+        - totalFeeCurrency
+        - totalSourceDebitAmount
+        - meta
+        - expiresAt
+        - status
       properties:
         id:
           type: string
-        feeAmount:
-          type: string
-          description: Exact source-currency conversion fee, rounded once to source precision. Zero for legacy or zero-fee quotes.
-        feeCurrency:
-          type: string
-          description: Source currency in which the conversion fee is charged.
-        sourceDebitAmount:
-          type: string
-          description: Source principal plus conversion fee only; retained compatibility meaning. Use totalSourceDebitAmount for Quick Send.
-        payoutFeeAmount:
-          type: string
-          description: Accepted payout fee in payoutFeeCurrency; its actual source charge is payoutFeeSourceAmount.
-        payoutFeeCurrency:
-          type: string
-          description: Destination/payout currency.
-        payoutFeeSourceAmount:
-          type: string
-          description: Accepted payout fee actually charged in source currency; zero for historical or conversion-only quotes.
-        totalFeeAmount:
-          type: string
-          description: Conversion fee plus payoutFeeSourceAmount, in source currency. Use for Quick Send total fees.
-        totalFeeCurrency:
-          type: string
-          description: Source currency used for combined fees.
-        totalSourceDebitAmount:
-          type: string
-          description: Source principal plus both customer fees. Recipient proceeds are unchanged.
         profileId:
+          type: string
+        reference:
           type: string
         sourceCurrency:
           type: string
@@ -2994,31 +4023,133 @@ components:
           type: string
         rate:
           type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        feeAmount:
+          type: string
+        feeCurrency:
+          type: string
+        sourceDebitAmount:
+          type: string
+        payoutFeeAmount:
+          type: string
+        payoutFeeCurrency:
+          type: string
+        payoutFeeSourceAmount:
+          type: string
+        totalFeeAmount:
+          type: string
+        totalFeeCurrency:
+          type: string
+        totalSourceDebitAmount:
+          type: string
+        meta:
+          $ref: "#/components/schemas/ClientMoneyMeta"
         expiresAt:
           type: string
         status:
           type: string
+          enum:
+            - pending
+            - accepted
+            - expired
+    ClientTransfer:
+      type: object
+      additionalProperties: false
+      description: Customer transfer state and accepted fee terms. Processing status does not by itself prove debit, refund or completion; use balanceImpact when available.
+      required:
+        - id
+        - profileId
+        - reference
+        - sourceCurrency
+        - destinationCurrency
+        - sourceAmount
+        - destinationAmount
+        - rate
+        - createdAt
+        - updatedAt
+        - feeAmount
+        - feeCurrency
+        - sourceDebitAmount
+        - payoutFeeAmount
+        - payoutFeeCurrency
+        - payoutFeeSourceAmount
+        - totalFeeAmount
+        - totalFeeCurrency
+        - totalSourceDebitAmount
+        - meta
+        - quoteId
+        - status
+        - failureReason
+        - events
+        - customerPresentation
+      properties:
+        id:
+          type: string
+        profileId:
+          type: string
         reference:
+          type: string
+        sourceCurrency:
+          type: string
+        destinationCurrency:
+          type: string
+        sourceAmount:
+          type: string
+        destinationAmount:
+          type: string
+        rate:
           type: string
         createdAt:
           type: string
-    Transfer:
-      type: object
-      additionalProperties: true
-      description: Transfer execution record and status.
-      required:
-        - id
-      properties:
+        updatedAt:
+          type: string
+        feeAmount:
+          type: string
+        feeCurrency:
+          type: string
+        sourceDebitAmount:
+          type: string
+        payoutFeeAmount:
+          type: string
+        payoutFeeCurrency:
+          type: string
+        payoutFeeSourceAmount:
+          type: string
+        totalFeeAmount:
+          type: string
+        totalFeeCurrency:
+          type: string
+        totalSourceDebitAmount:
+          type: string
+        meta:
+          $ref: "#/components/schemas/ClientMoneyMeta"
+        quoteId:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+            - reversed
+        failureReason:
+          type:
+            - string
+            - "null"
+          description: Customer-safe explanation, never a raw provider or compliance reason.
         approval:
           type:
             - object
             - "null"
           additionalProperties: false
-          description: Payout review status returned by transfer detail when applicable. The reason is customer-safe; internal staff decisions and identities are not exposed.
           required:
             - status
-            - version
             - reason
+            - version
           properties:
             status:
               type: string
@@ -3028,68 +4159,18 @@ components:
                 - rejected
                 - expired
                 - executing
+            reason:
+              type: "null"
             version:
               type: integer
-              minimum: 1
-            reason:
-              type:
-                - string
-                - "null"
-        id:
-          type: string
-        feeAmount:
-          type: string
-          description: Exact source-currency conversion fee, rounded once to source precision. Zero for legacy or zero-fee quotes.
-        feeCurrency:
-          type: string
-          description: Source currency in which the conversion fee is charged.
-        sourceDebitAmount:
-          type: string
-          description: Source principal plus conversion fee only; retained compatibility meaning. Use totalSourceDebitAmount for Quick Send.
-        payoutFeeAmount:
-          type: string
-          description: Accepted payout fee in payoutFeeCurrency; its actual source charge is payoutFeeSourceAmount.
-        payoutFeeCurrency:
-          type: string
-          description: Destination/payout currency.
-        payoutFeeSourceAmount:
-          type: string
-          description: Accepted payout fee actually charged in source currency; zero for historical or conversion-only quotes.
-        totalFeeAmount:
-          type: string
-          description: Conversion fee plus payoutFeeSourceAmount, in source currency. Use for Quick Send total fees.
-        totalFeeCurrency:
-          type: string
-          description: Source currency used for combined fees.
-        totalSourceDebitAmount:
-          type: string
-          description: Source principal plus both customer fees. Recipient proceeds are unchanged.
-        profileId:
-          type: string
-        quoteId:
-          type: string
-        status:
-          type: string
-        reference:
-          type: string
-        createdAt:
-          type: string
-        sourceCurrency:
-          type: string
-        destinationCurrency:
-          type: string
-        sourceAmount:
-          type: string
-        destinationAmount:
-          type: string
-        rate:
-          type: string
-        failureReason:
-          type:
-            - string
-            - "null"
-        updatedAt:
-          type: string
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientTransferEvent"
+        customerPresentation:
+          $ref: "#/components/schemas/TransferCustomerPresentation"
+        balanceImpact:
+          $ref: "#/components/schemas/ClientBalanceImpact"
     PayoutUsdLimitExceededError:
       type: object
       additionalProperties: false
@@ -3108,37 +4189,71 @@ components:
             - PAYOUT_MONTHLY_LIMIT_EXCEEDED
         message:
           type: string
-    Transaction:
+    ClientTransaction:
       type: object
-      additionalProperties: true
-      description: Customer transaction record.
+      additionalProperties: false
+      description: Customer transaction history, including held receipt-only deposits. Status is the financial state; displayStatus reflects current restrictions. Ledger entries, internal versions and provider costs are excluded.
       required:
         - id
+        - profileId
+        - currency
+        - amount
+        - category
+        - reference
+        - description
+        - subDescription
+        - status
+        - statusDescription
+        - type
+        - createdAt
+        - data
+        - isCredit
+        - isFiat
       properties:
         id:
           type: string
         profileId:
           type: string
-        type:
-          type: string
-        status:
+        currency:
           type: string
         amount:
           type: string
-        currency:
+        category:
           type: string
         reference:
           type: string
-        createdAt:
-          type: string
-        category:
-          type: string
         description:
           type: string
+        subDescription:
+          type: string
+        status:
+          type: string
+        statusDescription:
+          type: string
+        type:
+          type: string
+        createdAt:
+          type: string
+        displayStatus:
+          type: string
+        displayStatusDescription:
+          type: string
+        transactionHash:
+          type:
+            - string
+            - "null"
+        network:
+          type:
+            - string
+            - "null"
+        data:
+          $ref: "#/components/schemas/ClientTransactionData"
         isCredit:
           type: boolean
         isFiat:
           type: boolean
+        balanceImpact:
+          $ref: "#/components/schemas/ClientBalanceImpact"
     ApplicationStatus:
       type: string
       enum:
@@ -3151,10 +4266,785 @@ components:
         - rejected
         - changes_requested
         - cancelled
+    ClientOnboardingDocumentDelivery:
+      type: object
+      additionalProperties: false
+      required:
+        - documentId
+        - requirementType
+        - documentKind
+        - state
+        - message
+        - requiredAction
+        - lastAttemptAt
+        - lastCheckedAt
+        - canReplace
+      description: Customer delivery facts without provider references, retry history or private failure evidence.
+      properties:
+        documentId:
+          type: string
+        requirementType:
+          type: string
+        documentKind:
+          type: string
+        state:
+          type: string
+          enum:
+            - saved
+            - sending
+            - sent
+            - replacement_required
+            - attention_required
+        message:
+          type:
+            - string
+            - "null"
+        requiredAction:
+          type: string
+          enum:
+            - none
+            - replace_document
+            - staff_review
+            - check_delivery
+            - retry_delivery
+        lastAttemptAt:
+          type:
+            - string
+            - "null"
+        lastCheckedAt:
+          type:
+            - string
+            - "null"
+        canReplace:
+          type: boolean
+    ClientOnboardingSectionData:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - kind
+            - documents
+          properties:
+            kind:
+              type: string
+              const: documents
+            documents:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClientOnboardingDocument"
+        - type: object
+          additionalProperties: false
+          description: Existing applicant-editable form answers and related-party records. Form fields remain section-specific.
+          required:
+            - kind
+            - value
+          properties:
+            kind:
+              type: string
+              enum:
+                - company
+                - activity
+                - ownership
+                - regulation
+                - review
+            value:
+              type:
+                - object
+                - "null"
+              additionalProperties: true
+            relatedParties:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+    CryptoNetworkOption:
+      type: object
+      additionalProperties: false
+      required:
+        - network
+        - name
+        - testnet
+        - supportedAssets
+      properties:
+        network:
+          type: string
+          description: Exact canonical network identifier. Mainnet aliases never identify a testnet.
+        name:
+          type: string
+        testnet:
+          type: boolean
+        supportedAssets:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CryptoNetworkAsset"
+    CryptoNetworkAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - name
+        - testToken
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        testToken:
+          type: boolean
+          description: Use test tokens only when true. A test USDT fixture is not issuer Tether.
+    NetworkReceivingWallet:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - address
+        - coin
+        - memo
+        - nickname
+        - network
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        coin:
+          type: string
+        memo:
+          type: string
+        nickname:
+          type: string
+        network:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    ClientFundingInstructions:
+      type: object
+      additionalProperties: false
+      description: Fresh customer funding instructions. A memorandum must be included when funding requires it. Provider diagnostics and ownership references are excluded.
+      properties:
+        network:
+          type:
+            - string
+            - "null"
+        memorandum:
+          type:
+            - string
+            - "null"
+        bicCode:
+          type:
+            - string
+            - "null"
+        bankAddress:
+          type: object
+          additionalProperties: false
+          properties:
+            fullAddress:
+              type:
+                - string
+                - "null"
+            countryCode:
+              type:
+                - string
+                - "null"
+            city:
+              type:
+                - string
+                - "null"
+            region:
+              type:
+                - string
+                - "null"
+            postalCode:
+              type:
+                - string
+                - "null"
+        transactionFee:
+          type: object
+          additionalProperties: false
+          properties:
+            value:
+              type:
+                - string
+                - "null"
+            asset:
+              type:
+                - string
+                - "null"
+    PayoutFeeCatalogueRow:
+      type: object
+      additionalProperties: false
+      required:
+        - bandId
+        - payoutType
+        - currency
+        - precision
+        - channel
+        - label
+        - minimumAmount
+        - maximumAmount
+        - pricing
+        - payoutAvailability
+      properties:
+        bandId:
+          type: string
+          pattern: ^pbd_[a-f0-9]{32}$
+          description: Opaque exact fee-scope and amount-band identity. It grants no send permission.
+        payoutType:
+          type: string
+          enum:
+            - fiat
+            - crypto
+        currency:
+          type: string
+        precision:
+          type: integer
+          minimum: 0
+          maximum: 18
+        channel:
+          type: string
+        label:
+          type: string
+        canonicalNetwork:
+          type: string
+          description: Exact shared crypto network identity; absent for fiat.
+        chain:
+          type: string
+          description: Existing execution compatibility key; never substitute an alias or a different environment.
+        networkName:
+          type: string
+        testnet:
+          type: boolean
+        testToken:
+          type: boolean
+        minimumAmount:
+          type: string
+        maximumAmount:
+          type: string
+        pricing:
+          oneOf:
+            - $ref: "#/components/schemas/PayoutCustomerFeeTermsAvailable"
+            - $ref: "#/components/schemas/PayoutCustomerFeeUnavailable"
+        payoutAvailability:
+          $ref: "#/components/schemas/PayoutCatalogueAvailability"
+    PayoutCustomerFeeEstimateAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - feeCurrency
+        - terms
+        - effectiveFrom
+        - validUntil
+        - feeAmount
+      properties:
+        status:
+          type: string
+          const: available
+        feeCurrency:
+          type: string
+        terms:
+          $ref: "#/components/schemas/PayoutCustomerFeeTerms"
+        effectiveFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type:
+            - string
+            - "null"
+          format: date-time
+        feeAmount:
+          type: string
+          description: Final authoritative customer payout fee; explicit zero is valid.
+    PayoutCustomerFeeUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - reasonCode
+      properties:
+        status:
+          type: string
+          const: unavailable
+        reasonCode:
+          type: string
+          enum:
+            - pricing_unavailable
+            - ambiguous_scope
+            - scope_unavailable
+    PayoutCatalogueAvailability:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - status
+            - reasonCode
+          properties:
+            status:
+              type: string
+              const: available
+            reasonCode:
+              type: string
+              const: ready_for_quote
+        - type: object
+          additionalProperties: false
+          required:
+            - status
+            - reasonCode
+          properties:
+            status:
+              type: string
+              const: unknown
+            reasonCode:
+              type: string
+              const: availability_unverified
+        - type: object
+          additionalProperties: false
+          required:
+            - status
+            - reasonCode
+          properties:
+            status:
+              type: string
+              const: unavailable
+            reasonCode:
+              type: string
+              enum:
+                - payouts_paused
+                - amount_outside_limits
+                - routing_conflict
+                - payout_restricted
+                - not_configured
     PayoutDocumentId:
       type: string
       pattern: ^pdoc_[A-Za-z0-9_-]{24}$
       description: Opaque, profile-scoped invoice document reference. Never an S3 URL or object key.
+    ClientMoneyMeta:
+      type: object
+      additionalProperties: false
+      description: Customer pricing and payout instructions only. Request auditing, compliance evidence and provider routing metadata remain private.
+      properties:
+        rate:
+          type: object
+          additionalProperties: false
+          required:
+            - product
+            - sourceCurrency
+            - destinationCurrency
+            - rate
+            - side
+            - type
+          properties:
+            product:
+              type: string
+            sourceCurrency:
+              type: string
+            destinationCurrency:
+              type: string
+            rate:
+              type: string
+            side:
+              type: string
+              enum:
+                - buy
+                - sell
+            type:
+              type: string
+              const: fixed
+        payIn:
+          type: object
+          additionalProperties: false
+          description: Historical accepted pay-in information; new temporary-bank-account requests remain unsupported.
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              const: temporary_bank_account
+        payOut:
+          type: object
+          additionalProperties: false
+          description: Accepted payout instructions. Internal destination bindings and provider execution terms are excluded.
+          required:
+            - type
+            - paymentMethodId
+          properties:
+            paymentMethodId:
+              type: string
+            chain:
+              type: string
+            narration:
+              type: string
+            transferPurpose:
+              type: string
+            invoiceDocumentId:
+              type: string
+            recipientId:
+              type: string
+            businessId:
+              type: string
+            businessName:
+              type: string
+            type:
+              type: string
+              enum:
+                - fiat
+                - crypto
+                - ledig
+    ClientTransferEvent:
+      type: object
+      additionalProperties: false
+      description: Customer progress and receipt references; compliance evidence and Ledger journal references are excluded.
+      required:
+        - eventType
+        - sourceId
+        - status
+        - createdAt
+        - updatedAt
+        - meta
+      properties:
+        eventType:
+          type: string
+          enum:
+            - created
+            - conversion
+            - withdrawal
+        sourceId:
+          type:
+            - string
+            - "null"
+          description: Customer payout receipt reference for withdrawal events. Created and conversion events return null.
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        meta:
+          type: object
+          additionalProperties: false
+          properties:
+            rate:
+              type: object
+              additionalProperties: false
+              required:
+                - product
+                - sourceCurrency
+                - destinationCurrency
+                - rate
+                - side
+                - type
+              properties:
+                product:
+                  type: string
+                sourceCurrency:
+                  type: string
+                destinationCurrency:
+                  type: string
+                rate:
+                  type: string
+                side:
+                  type: string
+                  enum:
+                    - buy
+                    - sell
+                type:
+                  type: string
+                  const: fixed
+            payIn:
+              type: object
+              additionalProperties: false
+              description: Historical accepted pay-in information; new temporary-bank-account requests remain unsupported.
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  const: temporary_bank_account
+            payOut:
+              type: object
+              additionalProperties: false
+              description: Accepted payout instructions. Internal destination bindings and provider execution terms are excluded.
+              required:
+                - type
+                - paymentMethodId
+              properties:
+                paymentMethodId:
+                  type: string
+                chain:
+                  type: string
+                narration:
+                  type: string
+                transferPurpose:
+                  type: string
+                invoiceDocumentId:
+                  type: string
+                recipientId:
+                  type: string
+                businessId:
+                  type: string
+                businessName:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - fiat
+                    - crypto
+                    - ledig
+            payoutDetails:
+              type: object
+              additionalProperties: false
+              properties:
+                feeAmount:
+                  type: string
+                feeCurrency:
+                  type: string
+                payoutFeeSourceAmount:
+                  type: string
+                payoutFeeSourceCurrency:
+                  type: string
+                transactionHash:
+                  type: string
+                processingState:
+                  type: string
+                  enum:
+                    - awaiting_processing
+                    - processing
+    TransferCustomerPresentation:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - label
+        - message
+        - actionRequired
+      properties:
+        status:
+          type: string
+          enum:
+            - awaiting_processing
+            - processing
+            - completed
+            - failed
+            - returned
+            - action_required
+        label:
+          type: string
+        message:
+          type: string
+        actionRequired:
+          type: boolean
+    ClientBalanceImpact:
+      type: object
+      additionalProperties: false
+      description: Customer financial effect derived from Ledger entries, independently of processing status.
+      required:
+        - state
+        - lines
+      properties:
+        state:
+          type: string
+          enum:
+            - not_started
+            - on_hold
+            - deducted
+            - hold_released
+            - returned
+            - still_checking
+            - return_pending
+            - finishing_completion
+        lines:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - code
+              - currency
+              - amount
+              - state
+            properties:
+              code:
+                type: string
+                enum:
+                  - principal
+                  - transfer_fee
+                  - conversion_fee
+                  - converted_principal
+              currency:
+                type: string
+              amount:
+                type: string
+              state:
+                type: string
+                enum:
+                  - no_effect
+                  - reserved
+                  - settled
+                  - released
+                  - returned
+                  - late_settled
+                  - pending_finalization
+                  - pending_return
+                  - unknown
+    ClientTransactionData:
+      type: object
+      additionalProperties: false
+      description: Explicit customer history details retained across deposit, payout and off-platform records. Unknown stored data and provider costs are excluded.
+      properties:
+        sourceType:
+          type: string
+        source_type:
+          type: string
+        sourceId:
+          type: string
+        recordKind:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        rate:
+          type: string
+        sourceAmount:
+          type: string
+        sourceDebitAmount:
+          type: string
+        grossAmount:
+          type: string
+        netAmount:
+          type: string
+        fee:
+          type: string
+        feeAmount:
+          type: string
+        feeCurrency:
+          type: string
+        fromCurrency:
+          type: string
+        toCurrency:
+          type: string
+        destinationAmount:
+          type: string
+        pair:
+          type: string
+        baseCurrency:
+          type: string
+        quoteCurrency:
+          type: string
+        direction:
+          type: string
+        selectedSide:
+          type: string
+        bid:
+          type: string
+        ask:
+          type: string
+        agreedRate:
+          type: string
+        rateConvention:
+          type: string
+        calculatedDestinationAmount:
+          type: string
+        tradeDate:
+          type: string
+        completedAt:
+          type: string
+        receiptUrl:
+          type: string
+        affectsBalance:
+          type: boolean
+        settlement:
+          type: object
+          additionalProperties: false
+          properties:
+            method:
+              type: string
+            reference:
+              type: string
+            transactionHash:
+              type: string
+            network:
+              type: string
+            evidenceIds:
+              type: array
+              items:
+                type: string
+              description: Customer-downloadable settlement document references, not compliance evidence.
+    PayoutCustomerFeeTermsAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - feeCurrency
+        - terms
+        - effectiveFrom
+        - validUntil
+      properties:
+        status:
+          type: string
+          const: available
+        feeCurrency:
+          type: string
+        terms:
+          $ref: "#/components/schemas/PayoutCustomerFeeTerms"
+        effectiveFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Earliest applicable expiry or future policy change; null when no scheduled boundary is known.
+    PayoutCustomerFeeTerms:
+      type: object
+      additionalProperties: false
+      required:
+        - fixedFee
+        - feeBps
+        - minimumFee
+        - maximumFee
+      description: Current authoritative customer policy. The engine combines fixed and principal basis-point fees, applies bounds, applies the selected business adjustment once, then reapplies bounds and rounds once. Use the estimate API for the final amount; do not flatten these terms into a new formula.
+      properties:
+        fixedFee:
+          type: string
+        feeBps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        minimumFee:
+          type:
+            - string
+            - "null"
+        maximumFee:
+          type:
+            - string
+            - "null"
+        adjustment:
+          type: object
+          additionalProperties: false
+          required:
+            - type
+            - unit
+            - value
+          properties:
+            type:
+              type: string
+              enum:
+                - markup
+                - markdown
+            unit:
+              type: string
+              enum:
+                - percentage
+                - fixed
+            value:
+              type: string
   responses:
     Unauthorized:
       description: Missing, invalid or expired credential.
@@ -3204,6 +5094,17 @@ components:
             $ref: "#/components/schemas/Error"
     ServiceUnavailable:
       description: An authoritative dependency (database or provider) is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InvalidOnboardingDocument:
+      description: The actual file is unreadable, mislabeled, protected or exceeds validation complexity limits. Returns BAD_REQUEST with a safe message and details validationCode/reasonCode, retryable=false, documentId and requirementType. Replace that file; automatic retry is disabled. Previous retained documents remain unchanged.
+      headers:
+        x-onboarding-committed-revision:
+          description: Optional quoted application revision committed by this exact versioned document-completion or submission request when retaining its safe validation failure. Clients may acknowledge it only for the matching document-completion or submission 422 and must preserve unrelated unsaved answers. It is not a revision from a later read and is absent for conflicts, outages and unversioned legacy requests.
+          schema:
+            type: string
       content:
         application/json:
           schema:
@@ -3271,6 +5172,14 @@ components:
         enum:
           - asc
           - desc
+    SelectedProfileId:
+      in: header
+      name: X-Ledig-Profile-Id
+      required: false
+      description: Existing legacy profile selector. A managed-standard request must omit it or set it equal to X-Ledig-Business-Id; v2 includes it in the signed payload.
+      schema:
+        type: string
+        minLength: 1
   securitySchemes:
     BearerAuth:
       type: http
@@ -3282,13 +5191,13 @@ components:
       in: header
       name: x-ledig-key
       description: Public business API-key identifier.
-    LedigTimestamp:
-      type: apiKey
-      in: header
-      name: x-ledig-timestamp
-      description: Current Unix timestamp in seconds.
     LedigSignature:
       type: apiKey
       in: header
       name: x-ledig-signature
       description: HMAC-SHA256 signature prefixed with v1= for existing own-business/legacy selection, or v2= for header-bound managed-business delegation. See the Authentication section for exact canonical payloads.
+    LedigTimestamp:
+      type: apiKey
+      in: header
+      name: x-ledig-timestamp
+      description: Current Unix timestamp in seconds.

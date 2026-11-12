@@ -1,113 +1,78 @@
 ---
 title: "Funding"
-description: "Get fiat funding instructions and create crypto deposit wallets."
+description: "Request receiving instructions and follow account or wallet setup."
 ---
 
-## Fiat funding accounts
+A receiving account or wallet gives you funding instructions. Creating it does not credit your balance. Check the approved [environment and test assets](/introduction#environments) before sending funds.
 
-`GET /v1/virtual-accounts/{currency}` reads the profile's existing active account for that currency. It never creates one. If the profile has no account, the route returns `404`.
+## Fiat receiving accounts
 
-```http
-GET /v1/virtual-accounts/NGN
-```
+`GET /v1/virtual-accounts/{currency}` reads the profile's existing active account. It never creates one; `404` means no account is available through that read.
 
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "vis_example",
-    "currencyCode": "NGN",
-    "accountName": "Example Business",
-    "accountNumber": "0123456789",
-    "bankName": "Example Bank",
-    "bankCode": "000000",
-    "status": "active"
-  }
-}
-```
-
-### Request an account
-
-If the profile has no account for the currency, request one with `POST /v1/virtual-accounts`. The `Idempotency-Key` header is **required**:
+Request an account explicitly with `POST /v1/virtual-accounts`. This illustrative request uses a new, saved key for the intended setup:
 
 ```http
 POST /v1/virtual-accounts
-Idempotency-Key: 8f14e45f-ea3b-4c1a-9d5e-2f7c1a6b9d10
+Idempotency-Key: YOUR_IDEMPOTENCY_KEY
 Content-Type: application/json
 ```
 
 ```json
-{
-  "currency": "NGN",
-  "accountName": "Example Business"
-}
+{ "currency": "NGN", "accountName": "Example Business", "intent": "resume" }
 ```
 
-`provider` is optional. A completed request returns `200` with the issued account. A durable request that is still pending returns `202`:
+Use a currency enabled for your business. Send `intent: "resume"` to continue setup or select the matching completed setup. If more than one existing account needs a choice, Ledig returns a conflict. Use `intent: "additional"` only when you deliberately need another supported account; it is not a retry mechanism. Omitting intent preserves earlier creation behaviour and can request another account after completion, so do not omit it as a shortcut for resuming.
 
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "var_example",
-    "currency": "NGN",
-    "status": "pending_provider",
-    "missing": [],
-    "accountId": null
-  }
-}
-```
+| Response | Meaning                                                                             |
+| -------- | ----------------------------------------------------------------------------------- |
+| `200`    | The account is available, or this is the original completed result.                 |
+| `202`    | A durable request is pending. Retain its `id`, `status` and `missing` requirements. |
 
-`status` is `requested`, `manual_review`, `pending_provider` or `completed`. `missing` lists anything the request still needs; `accountId` is populated once an account exists.
+A pending response has `status` equal to `requested`, `manual_review`, `pending_provider` or `completed`, and `accountId` is populated when an account exists. Follow the returned missing requirements and any Ledig instructions. Do not keep submitting new keys to bypass a pending review.
 
-<Warning>
-  `GET` no longer creates an account. If your integration relied on the old get-or-create behaviour, migrate to `POST /v1/virtual-accounts` with an `Idempotency-Key`.
-</Warning>
+Read the issued account again when you need funding instructions. Use its returned account number, bank details and any required memorandum. Responses use `Cache-Control: no-store`; do not put bank details in logs or shared caches. A previous get-or-create integration must use the explicit POST for issuance.
 
-- Reuse the same `Idempotency-Key` when retrying the same request. Changed inputs with the same key return `409`.
-- Responses are `Cache-Control: no-store` because funding instructions can change. Fetch them when you need them; do not cache them in your UI or logs.
-- Use the returned account number for bank transfers. Do not expose another business's account details.
+## Discover crypto deposit networks
 
-## Crypto deposit wallets
+Call `GET /v1/wallets/options` before showing a deposit form. Each network includes its exact `network` identifier, `testnet` flag and `supportedAssets`. Use those returned identifiers rather than a hardcoded list.
 
-Create a wallet with `POST /v1/wallets`. The `Idempotency-Key` header is **required**:
+An empty result means new wallet setup is unavailable. Existing wallets remain readable. A network suitable for an external payout recipient is not necessarily enabled for deposit address creation.
+
+## Create a network address
+
+`POST /v1/wallets/network` requests one address for the network's admitted assets. Save the key and exact body before sending. Illustrative request:
 
 ```http
-POST /v1/wallets
-Idempotency-Key: 8f14e45f-ea3b-4c1a-9d5e-2f7c1a6b9d10
+POST /v1/wallets/network
+Idempotency-Key: YOUR_IDEMPOTENCY_KEY
 Content-Type: application/json
 ```
 
 ```json
-{
-  "nickname": "Treasury",
-  "coin": "USDT",
-  "network": "TRC20",
-  "memo": "optional"
-}
+{ "nickname": "Treasury", "network": "NETWORK_FROM_OPTIONS" }
 ```
 
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "wal_example",
-    "address": "TExampleAddress",
-    "memo": "",
-    "nickname": "Treasury",
-    "coin": "USDT",
-    "network": "TRC20",
-    "createdAt": "2026-10-22T09:00:00.000Z"
-  }
-}
-```
+Use the exact identifier returned by wallet options. HTTP `201` means `data.status` is `ready`; HTTP `202` means `pending`. Retain `data.requestId` in either case.
 
-- Reuse the same `Idempotency-Key` when retrying the same request. A different body with the same key returns `409 IDEMPOTENCY_CONFLICT`.
-- If the response includes a memo or tag, send it with every deposit to that address. A deposit without the required memo may not be credited.
-- `GET /v1/wallets` lists the profile's wallets. `GET /v1/wallets/{id}` returns one.
-- Wallet creation can wait on provider issuance. A conflict that says issuance is awaiting reconciliation means the wallet may already exist; retry later instead of creating another one.
-- A wallet has an address, not a separate balance. Balances stay at profile and currency level. See [Balances](/guides/balances).
+Read progress with `GET /v1/wallets/network/{requestId}`. The read returns HTTP `200` with the current status:
 
-## Next
+| Data                                             | What to do                                                                                                      |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `status: ready`                                  | Use the returned address and wallet instructions for the listed assets only.                                    |
+| `status: pending`, `setupState: processing`      | Poll the same request with bounded backoff.                                                                     |
+| `status: pending`, `setupState: review_required` | Retain the request ID and contact Ledig. Repeated polling or a replacement request does not resolve the review. |
+| `status: pending`, no `setupState`               | An older pending response. Keep the same request identity; ask Ledig if it remains unresolved.                  |
 
-Once funds are available, request a quote to convert or pay out. See [Quotes](/guides/quotes).
+A pending result has no usable address and an empty wallet list. The status read can finish the original setup, but never issues another address. `404` means the request is missing or unavailable to the selected profile.
+
+## Single-asset wallets and existing addresses
+
+`POST /v1/wallets` remains available for a single coin and network. It requires `nickname`, `coin`, `network` and an `Idempotency-Key`; select values from the deposit options response. Reuse the original key and body after an uncertain outcome.
+
+`GET /v1/wallets` lists your wallets; `GET /v1/wallets/{id}` reads one. If an address includes a memo or tag, send it with every deposit. Never substitute a mainnet address, network or asset for a returned testnet identity.
+
+An issuance conflict can mean the original request needs reconciliation. Preserve its key and request ID; do not request a replacement merely because a response was lost.
+
+## Confirm funds are available
+
+An observed bank transfer or chain transaction can still require processing or review. Use [Transactions](/guides/transactions) for the customer record and [Balances](/guides/balances) for available funds. Wallet setup, deposit observation and spendable balance are separate states.

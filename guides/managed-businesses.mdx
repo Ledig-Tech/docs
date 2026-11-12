@@ -1,74 +1,113 @@
 ---
 title: "Managed businesses"
-description: "Create and complete onboarding for a standard business managed by an institution."
+description: "Complete a managed business's onboarding while keeping its funds and approvals separate."
 ---
 
-A parent institution can create and manage standard businesses through the API. A managed business keeps its own onboarding, product access, recipients, accounts, balances and transactions. Managing it does not merge balances or approve it.
+An institution can create and manage standard businesses. Each managed business keeps its own onboarding, product access, limits, recipients, balances and transactions. A management relationship does not approve the business or combine its funds with the institution's funds.
 
-This flow is separate from the core collection, conversion and settlement flow. It requires the `merchants` service and `merchants:read` or `merchants:write`.
+## Choose the correct context
 
-## Before you start
+Parent-managed onboarding requires the institution's `merchants` service and `merchants:read` or `merchants:write` scope. Authenticate with its API key or an accepted dashboard session.
 
-- Authenticate as the institution, not the managed business. An API key must use HMAC v2 and the business-selection headers; see [Authentication](/auth/authentication#managed-business-delegation).
-- A dashboard session can use the same operations through its institution membership.
-- A relationship can exist while onboarding is incomplete. `canAct: false` means the business cannot yet be selected for delegated product requests.
+Keep the institution selected in `X-Ledig-Business-Id` and, if supplied, `X-Ledig-Acting-Business-Id`. Put the child's ID in `/v1/managed-businesses/{businessId}/onboarding`. A pending child may be onboarded through these paths even when its directory entry has `canAct: false`.
 
-## Typical flow
+This is an own-parent request, so HMAC v1 remains valid; HMAC v2 is also accepted. Later financial requests select the child and require v2 for an API key. See [Authentication](/auth/authentication#managed-business-delegation).
 
-<Steps>
-  <Step title="List managed businesses">
-    `GET /v1/managed-businesses` returns the institution's active relationships, including businesses that are still onboarding. The directory is not paginated and does not accept filters.
-  </Step>
+## Create the application
 
-  <Step title="Create an application">
-    `POST /v1/managed-businesses/applications` creates a standard business from `businessName` and a required `Idempotency-Key`. No email or signup invitation is sent. Reusing the key with the same name returns the original request; a different name returns `409`.
-  </Step>
+1. Call `GET /v1/managed-businesses` to read the institution's current relationships. This directory is not paginated.
+2. Call `POST /v1/managed-businesses/applications` with an `Idempotency-Key` and only `businessName` in the body:
 
-  <Step title="Read the application">
-    `GET /v1/managed-businesses/{businessId}/onboarding` returns the application state. `GET .../sections` lists the section statuses and what is still missing.
-  </Step>
+```json
+{ "businessName": "Example Trading Ltd" }
+```
 
-  <Step title="Complete the sections">
-    `GET .../{section}` returns one section, `PUT .../{section}` saves it, and `POST .../{section}/complete` marks it complete. `GET .../{section}/options` returns the allowed dropdown values for that section.
-  </Step>
+The accepted response includes `requestId`, `applicationId` and the child's `businessId`. Retain these values. Reusing the same key and name returns the original request; changing the name under that key returns `409`. This operation does not send an invitation or create an applicant login.
 
-  <Step title="Add related parties">
-    `POST .../owners` adds an owner or related party. `POST .../owners/{ownerId}/verification` starts or resumes a required individual UBO verification. `DELETE .../owners/{ownerId}` removes one.
-  </Step>
+Use the returned child ID in the onboarding paths below. Do not supply another application ID in a body to select the application.
 
-  <Step title="Upload documents">
-    `POST .../documents` requests an upload slot. PDF, JPEG and PNG files up to 50 MiB are accepted. Upload the file to the returned slot; the runtime verifies its size, MIME type and SHA-256.
-  </Step>
+## Read and update sections
 
-  <Step title="Submit">
-    `POST .../onboarding/submit` submits the application for review. Submission does not approve the business or enable a product.
-  </Step>
+The following paths are relative to `/v1/managed-businesses/{businessId}/onboarding`:
 
-  <Step title="Share with the applicant">
-    Optionally create a scoped link so the applicant can complete the application without an account. See below.
-  </Step>
-</Steps>
+| Method and path                       | Purpose                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| `GET /`                               | Application status, correction instructions and verification progress.     |
+| `GET /sections`                       | Section statuses, saved answers and the current `updatedAt` edit revision. |
+| `GET /{section}`                      | Read one section.                                                          |
+| `GET /{section}/options`              | Discover valid form values and document requirements.                      |
+| `PUT /{section}`                      | Save answers using the endpoint's `{ "data": ... }` shape.                 |
+| `POST /{section}/complete`            | Validate and complete a section.                                           |
+| `POST /owners`                        | Add an owner or related party.                                             |
+| `DELETE /owners/{ownerId}`            | Remove a related party.                                                    |
+| `POST /owners/{ownerId}/verification` | Start or resume a required individual verification.                        |
+| `POST /submit`                        | Submit the application for review.                                         |
+
+Only the relevant individual should complete their identity and liveness verification. A verification session is a short-lived capability; keep it out of logs and share it only with that individual through the intended flow.
+
+## Preserve the edit revision
+
+Parent-managed applications may be edited by the institution and an applicant using a sharing link. Use the revision to avoid overwriting another person's changes:
+
+1. Read `data.updatedAt` from `GET .../onboarding/sections` without changing its formatting.
+2. Send that exact value, surrounded by double quotes, in `If-Match` when saving or completing a section, adding or removing an owner, registering or completing a document upload, or submitting.
+3. A successful mutation returns the next quoted revision in `ETag`. Use that value for the next mutation.
+4. Missing or stale revisions return `409`. Preserve unsaved input, reload the current state and reconcile it before trying again. Do not automatically overwrite the new revision.
+
+For example, build the header in your client with `JSON.stringify(sectionList.data.updatedAt)`. After a successful write, copy `response.headers.get("ETag")` directly into the next `If-Match` header.
+
+A sequence of writes is not one atomic edit. Earlier steps may have succeeded before a later step conflicts, so reread the saved application before resuming.
+
+## Upload and complete each document
+
+An upload has three steps. A successful file transfer alone does not mean the document is accepted.
+
+1. **Register:** call `POST .../onboarding/documents` with the current `If-Match` and the required document fields. Compute the SHA-256 checksum from the exact file bytes and supply the exact `sizeBytes`. Use the requirement and document kind returned by the options endpoint. Retain `data.document.id`, `data.upload` and the response `ETag`.
+2. **Transfer:** PUT the exact file bytes to `data.upload.uploadUrl` before it expires, using all returned `requiredHeaders`. Do not add Ledig API authentication to the upload URL. In browsers, let the browser set `Content-Length` from the file bytes.
+3. **Complete:** after the PUT succeeds, call `POST .../onboarding/documents/{documentId}/complete` with the revision from registration in `If-Match`. Adopt the returned `ETag` and the durable `data.document` receipt before the next edit.
+
+PDF, JPEG and PNG files are supported, up to 50 MiB each. Read `maxSizeBytes` and `allowedMimeTypes` from the returned upload policy. Completion checks the stored size, MIME type, checksum and readability. An invalid file receives a file-specific correction; replace it rather than repeatedly uploading the same damaged bytes. A temporary validation outage requires retrying completion of the same registered file after recovery, not creating another upload.
+
+A known failed or interrupted PUT must not be shown as complete. If an outcome is uncertain, retain the document ID and reconcile its state before replacing it. Repeating completion with a current revision preserves the original receipt; stale revisions still conflict.
+
+A validation failure can include a quoted `x-onboarding-committed-revision` for that exact failed completion or submission. Apply it only to the matching response, preserve unrelated unsaved edits, and use the returned correction. An ordinary error or a later read is not permission to overwrite another editor's work.
+
+<Warning>
+  Upload URLs and required upload headers are temporary credentials. Do not log
+  them, persist them in analytics or send them to another service. Document
+  receipt means the file passed upload validation; it does not mean the business
+  has been approved.
+</Warning>
+
+## Submit and follow corrections
+
+Call `POST .../onboarding/submit` with the current revision after completing the required sections, documents and individual checks. Submission begins review; it does not approve or activate the business.
+
+Read the application to follow status and verification progress. When `status` is `changes_requested`, `reviewReason` contains the customer correction instructions. Apply corrections through the same sections and upload flow. Do not infer approval from a file upload or a single verification result.
 
 ## Sharing links
 
-A sharing link lets an applicant edit and submit the application — including its documents — without a Ledig account. It gives no financial or dashboard access.
+A sharing link lets an applicant read, edit and submit this application without a Ledig account. It does not grant financial access, dashboard membership or approval authority.
 
-| Operation | Path |
-| --- | --- |
-| Read the current link status | `GET /v1/managed-businesses/{businessId}/onboarding/share` |
-| Create or replace a link | `POST /v1/managed-businesses/{businessId}/onboarding/share` |
-| Revoke a link | `DELETE /v1/managed-businesses/{businessId}/onboarding/share/{sessionId}` |
+| Operation                   | Path after `/onboarding`                                              |
+| --------------------------- | --------------------------------------------------------------------- |
+| Read current session status | `GET /share`                                                          |
+| Create a link               | `POST /share` with `{}`                                               |
+| Replace a link              | `POST /share` with `replaceSessionId` from the latest status response |
+| Revoke a link               | `DELETE /share/{sessionId}`                                           |
 
-- Links expire after seven days.
-- To replace an existing link, send its `replaceSessionId` from the status response. A stale or missing replacement ID returns `409`; replacement revokes the prior sessions.
-- The URL is returned once and contains its credentials in the fragment. It is never emailed automatically. Do not log or persist it.
+Keep the institution selected for these operations. Links expire after seven days and can be revoked earlier. Replacement revokes the previous link and its browser sessions; a stale replacement ID returns `409`.
+
+The URL is returned once and is not emailed automatically. If the creation response is lost, read the current session status and explicitly replace that session. The original plaintext URL cannot be recovered.
 
 <Warning>
-  Treat a sharing URL as a credential. Anyone with it can edit and submit the application, including uploading documents.
+  Anyone with a sharing URL can access this application's personal and business
+  information and edit or submit it. Deliver it only to the intended applicant.
+  Keep it out of logs, analytics and shared records.
 </Warning>
 
-## After submission
+## Use the managed business after onboarding
 
-The business completes the normal review and approval flow. Its own compliance state, product access, limits, recipients, accounts and balances remain separate from the institution's. Use the managed business ID in `X-Ledig-Business-Id` for later product requests; the institution's funds and approvals are not substituted.
+An active business with the required product access can be selected for supported financial operations. Set `X-Ledig-Business-Id` to the child and sign the request with HMAC v2 using the institution's key. Current relationship and permission checks still apply. Each operation uses the child's funds, limits and approved destinations.
 
-The API reference lists every managed-business operation and its request fields.
+Onboarding is separate from moving money: `canAct`, business status, product access and the financial operation's own checks determine what is available.

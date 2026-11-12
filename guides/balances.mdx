@@ -5,7 +5,7 @@ description: "Read available and reserved balances from the Ledig ledger."
 
 ## Read balances
 
-`GET /v1/balances` returns one balance per currency held by the profile:
+`GET /v1/balances` returns one balance per currency held by the profile. Illustrative response excerpt:
 
 ```json
 {
@@ -27,15 +27,15 @@ If the profile has never held that currency, the read creates the balance record
 
 ## What the fields mean
 
-| Field | Meaning |
-| --- | --- |
-| `currency` | Currency code, uppercase |
-| `available` | Amount free to quote, transfer or convert |
-| `reserved` | Amount held for an in-flight operation |
+| Field       | Meaning                                                                        |
+| ----------- | ------------------------------------------------------------------------------ |
+| `currency`  | Currency code, uppercase                                                       |
+| `available` | Amount available before the requested operation's eligibility and limit checks |
+| `reserved`  | Amount held for an in-flight operation                                         |
 
 Amounts are decimal strings, not numbers. Parse them with a decimal type and never with floating point. The currency's precision is part of the currency catalogue.
 
-Balances are per profile and currency. They are not per wallet: a crypto deposit wallet holds addresses, not a separate ledger balance.
+Balances are per profile and currency. A crypto wallet holds receiving addresses, not a separate balance. Available funds do not themselves establish that a recipient, route or payment is eligible.
 
 ## Where balances come from
 

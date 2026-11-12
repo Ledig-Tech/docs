@@ -1,0 +1,5 @@
+# Verified historical UUID Idempotency-Key examples, not authentication credentials.
+# Fingerprints apply only to these three findings; no rule or path is exempted.
+17443f07582f0a9149de262c9181c48b856a28ae:guides/idempotency.mdx:generic-api-key:14
+68a8bdf996c49a9f2399755feb0a6e61b13d2f41:guides/funding.mdx:generic-api-key:35
+17443f07582f0a9149de262c9181c48b856a28ae:guides/funding.mdx:generic-api-key:42

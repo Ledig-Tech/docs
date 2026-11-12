@@ -1,11 +1,13 @@
 ---
 title: "Transfers"
-description: "Execute a quote and follow its status."
+description: "Execute accepted quote terms once and track processing and funds separately."
 ---
 
-A transfer consumes a [quote](/guides/quotes) and moves the money. The quote supplies the amounts, rate and payout instruction; the transfer owns execution and state.
+A transfer executes a [quote](/guides/quotes). The accepted quote supplies its amounts, fees and destination. Keep the quote ID and your reference before submitting.
 
 ## Create a transfer
+
+Illustrative request:
 
 ```http
 POST /v1/transfers
@@ -13,67 +15,62 @@ Content-Type: application/json
 ```
 
 ```json
-{
-  "quoteId": "qte_example",
-  "reference": "order-1042"
-}
+{ "quoteId": "example_quote_id", "reference": "example_order_reference" }
 ```
 
-| Field | Required | Notes |
-| --- | --- | --- |
-| `quoteId` | Yes | A pending, unexpired quote owned by the profile |
-| `reference` | No | Your reference, 1–64 characters |
+`quoteId` is required. `reference` is optional and can contain up to 64 characters. On first creation, the quote must belong to the financial profile, remain pending and unexpired, and pass current balance, payment and eligibility checks. Available funds must cover the accepted total source debit, including fees.
 
-Before it accepts the transfer, Ledig checks that the quote is still valid and that the source balance covers the source amount. The quote is consumed in the same transaction that creates the transfer.
+HTTP `201` acknowledges the transfer; it does not mean settlement has completed. Store the returned transfer ID and follow `GET /v1/transfers/{id}`. An internal Ledig payment uses the same create call after a quote with `payOut.type: "ledig"`.
 
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "trf_example",
-    "quoteId": "qte_example",
-    "reference": "order-1042",
-    "sourceCurrency": "USDT",
-    "destinationCurrency": "NGN",
-    "sourceAmount": "100",
-    "destinationAmount": "159000",
-    "rate": "1590",
-    "status": "pending",
-    "failureReason": null,
-    "createdAt": "2026-10-22T09:00:00.000Z",
-    "updatedAt": "2026-10-22T09:00:00.000Z"
-  }
-}
-```
+## Processing status
 
-## Transfer to a Ledig business
+| Status       | Meaning                                                             |
+| ------------ | ------------------------------------------------------------------- |
+| `pending`    | Accepted and waiting for a processing stage.                        |
+| `processing` | Execution is in progress.                                           |
+| `completed`  | Transfer processing completed.                                      |
+| `failed`     | Execution stopped; read the customer explanation and funds outcome. |
+| `reversed`   | A reversal was recorded; read the funds outcome.                    |
 
-When the quote uses `payOut.type: "ledig"`, the transfer pays another Ledig business directly. Create it with the same `POST /v1/transfers` call and `quoteId`; no saved recipient is involved. The destination and its eligibility are rechecked during execution. See [Quotes](/guides/quotes#pay-a-ledig-business) for the quote shape.
+Use `customerPresentation.label`, `message` and `actionRequired` for customer-facing progress. An optional `approval` state can show that a payment awaits review. The customer contract deliberately returns `approval.reason` as `null`; it is not an instruction to display private review notes.
 
-## Status
+Processing status alone does not establish whether money was held, deducted, released or returned.
 
-| Status | Meaning |
-| --- | --- |
-| `pending` | Accepted and waiting for the next stage |
-| `processing` | Conversion or payout is in progress |
-| `completed` | The destination amount was settled |
-| `failed` | Execution stopped; `failureReason` explains why |
-| `reversed` | The payout was returned after execution |
+## What happened to the funds
 
-A payout can also carry an approval state: `pending`, `approved`, `rejected`, `expired` or `executing`. When approval is required, the transfer waits for the payout review instead of failing immediately. `failureReason` and the approval reason are written for the customer; they never contain staff investigation notes.
+When present, `balanceImpact` describes the recorded balance effect:
 
-## Read a transfer
+| State                  | Display meaning                          |
+| ---------------------- | ---------------------------------------- |
+| `not_started`          | No recorded payment effect yet.          |
+| `on_hold`              | Funds are reserved.                      |
+| `deducted`             | A debit is recorded.                     |
+| `hold_released`        | The reservation was released.            |
+| `returned`             | A return is recorded.                    |
+| `return_pending`       | A return is being completed.             |
+| `finishing_completion` | Financial completion is being finalised. |
+| `still_checking`       | The funds outcome is not yet confirmed.  |
 
-```http
-GET /v1/transfers/{id}
-```
+Read its `lines` for per-currency amounts and effects. Do not turn `failed` into a refund message or treat a missing `balanceImpact` as zero impact. `still_checking` can accompany an otherwise readable transfer while the balance evidence is unavailable or incomplete.
 
-Poll this route to follow a transfer. Back off on `429` and `5xx`; do not poll faster than once per second per transfer.
+## Read and reconcile
 
-There is **no list route** for transfers. Use [Transactions](/guides/transactions) for history.
+Poll `GET /v1/transfers/{id}` with bounded backoff. Honour `Retry-After` on rate limiting and avoid repeated create calls as a status check. There is no transfer-list route in this reference; use [Transactions](/guides/transactions) for history.
+
+Returned events may include a payout receipt identity or chain transaction hash. A hash identifies a transaction; it does not replace the transfer's current processing or funds status.
 
 ## Retries
 
-A transfer has no idempotency key, and its quote can be consumed only once. If the create call times out after you sent it, do not submit a new transfer with the same quote and expect a replay. Contact [admin@ledig.io](mailto:admin@ledig.io) with the quote ID, reference and timestamp so the transfer can be located before you retry.
+`POST /v1/transfers` uses quote/reference replay within the same financial profile. It does not accept a generic `Idempotency-Key` contract.
 
-A request that reuses a consumed quote is rejected. Create a new quote only when you have confirmed that no transfer was created.
+| Submitted identifiers                                          | Result                                                         |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| Existing quote ID, with no reference or the original reference | Return the original transfer.                                  |
+| Existing reference with a fresh quote ID                       | Return the original transfer; the fresh quote stays unused.    |
+| Existing quote ID with a new, unclaimed reference              | Return the original transfer without adding a reference alias. |
+| Quote ID and reference point to different existing transfers   | Return `409 IDEMPOTENCY_CONFLICT`; create nothing.             |
+| New quote ID and unused reference, or no reference             | Apply normal creation checks.                                  |
+
+For a retained transfer, replay happens before quote acceptance, balance checks or payout admission. Authentication, request validation and active-business checks still apply. Creation is serialized for matching identifiers, but clients must still handle errors during releases and reconcile an uncertain result.
+
+After a timeout, keep the original identifiers and use a fresh valid signature. Do not obtain a new quote merely to retry a possibly accepted payment. Contact [admin@ledig.io](mailto:admin@ledig.io) if the original outcome remains unresolved.

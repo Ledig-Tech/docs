@@ -1,27 +1,42 @@
 ---
 title: "Quotes"
-description: "Price a conversion or payout and get executable terms."
+description: "Confirm executable pricing, payment fees, total debit and expiry."
 ---
 
-A quote fixes the rate, the destination amount and an expiry. Nothing moves until a [transfer](/guides/transfers) consumes the quote.
+A quote records the rate, amounts, fees and expiry for a conversion or payment. It does not move funds; a [transfer](/guides/transfers) executes the accepted terms.
 
-## 1. Choose a payment method
+## Discover currencies and rates
 
-For a payout, list the payment options for the corridor:
+`GET /v1/currencies` returns configured currency codes, decimal precision and networks. It does not promise that every listed asset has a currently available payment route. `GET /v1/rates` returns indicative rates for reference; use a fresh quote for executable terms.
 
-```http
-GET /v1/quotes/payment-options?type=withdraw&currency=NGN&amount=100000
-```
+Send decimal strings at the source currency's precision. Do not round excess fractional digits silently or assume every currency uses two decimals. The server calculates the destination amount and validates its precision too.
 
-| Query | Required | Meaning |
-| --- | --- | --- |
-| `type` | Yes | `deposit` or `withdraw` |
-| `currency` | Yes | Destination currency code |
-| `amount` | No | Amount to check against the option's limits |
+## Discover payment methods and fees
 
-Each option returns a stable `paymentMethodId`, its channel, name, description, currency, fees, minimum and maximum amounts, and whether conversion is supported. Pass one of its `paymentMethodIds` in the quote's `payOut`.
+These reads answer different questions:
 
-## 2. Create the quote
+| Operation                        | Use                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| `GET /v1/quotes/payment-options` | Discover eligible deposit or withdrawal methods for the currency, amount and destination.     |
+| `GET /v1/payouts/catalogue`      | Display published payout fee bands, independently of whether sending is currently available.  |
+| `POST /v1/payouts/fee-estimate`  | Estimate the fee for an amount and exact crypto network, without creating a quote or payment. |
+| `GET /v1/quotes/payout-fees`     | Display the current customer payout-fee schedule, including internal Ledig transfers.         |
+
+These discovery and fee operations require `quotes:read`; product access is checked separately.
+
+For an external payout, supply `type=withdraw`, the destination `currency` and your approved `recipientId` to payment options. An optional `amount` filters options by limits. For crypto, include the matching `chain`. For an internal Ledig payment, supply `businessId` instead of `recipientId`; those two selectors are mutually exclusive.
+
+Choose a value from the returned `paymentMethodIds` array for `payOut.paymentMethodId`. The option's own `id` is not the payment method ID. Preserve its `invoiceRequired` association when presenting choices. An empty list means no eligible option for that request.
+
+If the selected option requires an invoice, include its valid `payOut.invoiceDocumentId` after completing the agreed dashboard or integration upload flow. Invoice-upload endpoints are not part of this published reference; contact Ledig to arrange that flow before using an invoice-required route. Do not invent a document ID or try to bypass the requirement with another method. `payOut.transferPurpose` remains optional; it does not replace the invoice.
+
+The fee estimator is a non-mutating POST available with `quotes:read`, including a Read Only key. It requires `currency`, `payoutType` and a positive decimal `amount`; crypto also requires the exact `network`. A visible catalogue `bandId` can resolve an ambiguous band selection. A band is not permission to execute a payout.
+
+Show pricing availability and payout availability separately. A priced band may remain visible while sending is unavailable, and an out-of-range amount can return `amountWithinLimits: false`. Missing or ambiguous pricing must not become a zero fee. Fetch a quote to confirm executable terms; do not cache these private responses or calculate the authoritative fee in your client.
+
+## Create the quote
+
+Illustrative request using an approved recipient and a payment method returned by discovery:
 
 ```http
 POST /v1/quotes
@@ -30,117 +45,66 @@ Content-Type: application/json
 
 ```json
 {
-  "reference": "order-1042",
+  "reference": "example_order_reference",
   "sourceCurrency": "USDT",
   "destinationCurrency": "NGN",
   "sourceAmount": "100",
   "payOut": {
     "type": "fiat",
-    "recipientId": "rcp_example",
-    "paymentMethodId": "pm_example"
+    "recipientId": "RECIPIENT_ID",
+    "paymentMethodId": "PAYMENT_METHOD_ID"
   }
 }
 ```
 
-| Field | Required | Notes |
-| --- | --- | --- |
-| `sourceCurrency` | Yes | Currency you are sending |
-| `destinationCurrency` | Yes | Currency you are receiving or paying out |
-| `sourceAmount` | Yes | Positive decimal string, up to 18 decimal places |
-| `reference` | No | Your reference, 1–64 characters |
-| `payOut` | No | Required for a same-currency payout; see below |
+| Field                                   | Meaning                                                       |
+| --------------------------------------- | ------------------------------------------------------------- |
+| `sourceCurrency`, `destinationCurrency` | Enabled currency codes for this request.                      |
+| `sourceAmount`                          | Positive decimal string at the source currency's precision.   |
+| `reference`                             | Optional reference, up to 64 characters.                      |
+| `payOut`                                | Destination instruction; required for same-currency payments. |
 
-`payOut` accepts:
+For `payOut.type: fiat` or `crypto`, use an approved `recipientId` and eligible `paymentMethodId`. For crypto, include `chain` when required by the selected destination. A conversion between currencies can omit `payOut` when the converted amount stays in the Ledig balance.
 
-| Field | Required | Notes |
-| --- | --- | --- |
-| `type` | Yes | `fiat`, `crypto` or `ledig` |
-| `recipientId` | For `fiat` and `crypto` | An approved [recipient](/guides/recipients) |
-| `businessId` | For `ledig` | Exact Ledig business ID, confirmed with `GET /v1/ledig-businesses/{businessId}` |
-| `paymentMethodId` | Yes | From the payment options response. For `ledig`, use `ledig` |
-| `chain` | No | Crypto network, when the destination needs it. Not allowed for `ledig` |
-| `narration` | No | Description sent with the payout |
+## Read fees and the total debit
 
-The response contains the quote ID, the source and destination amounts, the rate, the status and `expiresAt`:
+Read the returned fields together rather than adding a displayed fee a second time:
 
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "qte_example",
-    "reference": "order-1042",
-    "sourceCurrency": "USDT",
-    "destinationCurrency": "NGN",
-    "sourceAmount": "100",
-    "destinationAmount": "159000",
-    "rate": "1590",
-    "status": "pending",
-    "expiresAt": "2026-10-22T09:05:00.000Z",
-    "createdAt": "2026-10-22T09:00:00.000Z"
-  }
-}
-```
+| Field                                  | Meaning                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `sourceAmount`                         | Conversion or payment principal in the source currency.                                                 |
+| `destinationAmount`, `rate`            | Accepted destination amount and rate. Use the returned amounts; do not recompute from indicative rates. |
+| `feeAmount`, `feeCurrency`             | Conversion fee, expressed in the source currency.                                                       |
+| `sourceDebitAmount`                    | Principal plus conversion fee only.                                                                     |
+| `payoutFeeAmount`, `payoutFeeCurrency` | Payout fee in the payout currency.                                                                      |
+| `payoutFeeSourceAmount`                | That payout fee expressed in the source currency.                                                       |
+| `totalFeeAmount`, `totalFeeCurrency`   | Conversion fee plus payout fee expressed together in the source currency.                               |
+| `totalSourceDebitAmount`               | Total source debit, including both accepted fee components.                                             |
 
-The server calculates `destinationAmount`. Never calculate it from the indicative rates endpoint: a rate is a reference, a quote is executable.
+For example, if the accepted source principal is `100`, conversion fee is `1` and payout fee in source currency is `0.5`, `sourceDebitAmount` is `101`, `totalFeeAmount` is `1.5` and `totalSourceDebitAmount` is `101.5`. Do not add `payoutFeeAmount` again to that total, and do not add amounts expressed in different currencies.
+
+This arithmetic illustrates returned fields; it is not a fee schedule. The quote fixes the customer terms. Display `totalSourceDebitAmount` before confirmation and retain the quote ID and `expiresAt`.
 
 ## Pay a Ledig business
 
-A direct internal transfer pays another Ledig business without saving a recipient. Use it when the destination is a Ledig business and you have its exact business ID.
+Look up `GET /v1/ledig-businesses/{businessId}` with the exact destination ID and ask the sender to confirm the returned business name. This is not a search directory.
 
-1. Look up the ID to confirm the business name:
-
-```http
-GET /v1/ledig-businesses/business_destination
-```
+Create the quote with this `payOut` shape:
 
 ```json
 {
-  "status": "success",
-  "data": {
-    "id": "business_destination",
-    "name": "Example Trading Limited"
-  }
+  "type": "ledig",
+  "businessId": "DESTINATION_BUSINESS_ID",
+  "paymentMethodId": "ledig"
 }
 ```
 
-The lookup is exact; it is not a directory or partial-name search. Ask the sender to confirm the returned name before creating the quote.
+Do not send `recipientId` or `chain`, and do not create a saved recipient for this flow. The destination must be eligible; sending to the same financial profile is rejected. Eligibility is checked again when the transfer executes.
 
-2. Create the quote with `payOut.type: "ledig"`:
+## Expiry and readback
 
-```json
-{
-  "sourceCurrency": "USDT",
-  "destinationCurrency": "NGN",
-  "sourceAmount": "100",
-  "payOut": {
-    "type": "ledig",
-    "businessId": "business_destination",
-    "paymentMethodId": "ledig"
-  }
-}
-```
+`expiresAt` controls first execution. `GET /v1/quotes/{id}` reads the quote; `GET /v1/quotes` lists quotes using [cursor pagination](/guides/pagination).
 
-- Send exactly one `businessId` with `paymentMethodId: "ledig"`. Do not send `recipientId` or `chain`.
-- The source profile must be active and eligible for payouts. Destination eligibility and compliance are checked again during execution.
-- A transfer to the same financial profile is rejected.
-- `GET /v1/quotes/payment-options` accepts an optional `businessId` for internal payout discovery. It is mutually exclusive with `recipientId`.
-- The quote's `payOut` metadata contains the business ID and name; private execution fields are not exposed.
+A quote is consumed once. If an unused quote expires, obtain new terms. If transfer creation might already have succeeded, reconcile or replay that transfer using its original identifiers before creating a replacement quote. A retained transfer can still be recovered after its original quote expires; see [transfer retries](/guides/transfers#retries).
 
-## Rules
-
-- A quote that converts between currencies can omit `payOut`. A quote that pays out in the same currency must include it.
-- For `payOut.type: "ledig"`, use `businessId` and `paymentMethodId: "ledig"`; do not send `recipientId` or `chain`.
-- `payIn` with `type: "temporary_bank_account"` is reserved but **not implemented**. Requests that send it return `501 NOT_IMPLEMENTED`.
-- A quote is single-use. A transfer consumes it, and a consumed or expired quote cannot be used again.
-- `expiresAt` is authoritative. Create a new quote rather than retrying an expired one.
-
-## Read quotes
-
-| Operation | Path |
-| --- | --- |
-| List | `GET /v1/quotes` |
-| Read | `GET /v1/quotes/{id}` |
-
-Lists use cursor pagination. See [Pagination](/guides/pagination).
-
-Next: [Transfers](/guides/transfers).
+`payIn.type: temporary_bank_account` is reserved and returns `501 NOT_IMPLEMENTED`. Deposit-method discovery does not enable deposit quote execution.

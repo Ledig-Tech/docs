@@ -1,49 +1,35 @@
 ---
 title: "Quickstart"
-description: "From account access to your first signed request."
+description: "Configure access and make a first signed read request."
 ---
 
 <Steps>
-  <Step title="Get access">
-    Request a business account on [ledig.io](https://www.ledig.io/contact). After onboarding is approved, you can sign in to the dashboard.
+  <Step title="Confirm your environment and business">
+    Request access through [ledig.io](https://www.ledig.io/contact). Agree the approved integration environment and business with Ledig. Read [Environments](/introduction#environments) before testing.
   </Step>
-
   <Step title="Create an API key">
-    In the dashboard, open **Settings** and create an API key. Choose **Full access**, **Read only**, or **Custom** permissions.
-
-    The response contains `apiKey` and `secretKey`. The secret is shown once. Store it in your secret manager and never put it in browser code.
+    An authorised business administrator creates a key in the dashboard. Select only the permissions the integration needs. Keep the API key and secret in server-side secret storage; the secret is shown once.
   </Step>
-
+  <Step title="Set the API origin">
+    Set `LEDIG_API_BASE_URL` to the approved HTTPS origin, without a trailing path. Configure `LEDIG_API_KEY` and `LEDIG_API_SECRET` securely. Do not paste credentials into source files or command history.
+  </Step>
   <Step title="Check connectivity">
-    The health route is public and needs no signature. Confirm you can reach the sandbox:
+    The public health route needs no signature:
 
     ```bash
-    curl https://api-staging.ledig.io/v1/health
+    : "${LEDIG_API_BASE_URL:?Set the approved API origin first}"
+    curl --fail-with-body "${LEDIG_API_BASE_URL%/}/v1/health"
     ```
 
-    ```json
-    { "status": "ok" }
-    ```
+    A healthy process returns `{ "status": "ok" }`. This checks API reachability, not database access, service eligibility or payment readiness.
+
   </Step>
-
-  <Step title="Sign a request">
-    Every other request carries `x-ledig-key`, `x-ledig-timestamp` and `x-ledig-signature`. The signature covers the timestamp, method, path and raw body.
-
-    Read [Authentication](/auth/authentication) for the exact payload and working examples in Node.js and Python.
+  <Step title="Make a signed read">
+    Use the runnable examples in [Authentication](/auth/authentication#examples) to call `GET /v1/balances`. Sign the exact method, path with query, timestamp and body sent. Never put the secret into a request header.
   </Step>
-
-  <Step title="Explore the API">
-    The full endpoint reference is being finalised. Until it is published, contact [admin@ledig.io](mailto:admin@ledig.io) for the current contract and a guided sandbox walkthrough.
+  <Step title="Choose your workflow">
+    Discover currencies with `GET /v1/currencies`. Follow [Funding](/guides/funding) for receiving accounts and addresses, or [Quotes](/guides/quotes) for conversion and payout pricing. Complete an approved test scenario before enabling payment writes in your application.
   </Step>
 </Steps>
 
-## What to read next
-
-<Columns cols={2}>
-  <Card title="Authentication" icon="key" href="/auth/authentication">
-    Headers, canonical payload, signing examples and key rotation.
-  </Card>
-  <Card title="Errors" icon="triangle-exclamation" href="/errors/errors-and-troubleshooting">
-    Response envelope, error codes, limits and retry rules.
-  </Card>
-</Columns>
+Use [Errors and troubleshooting](/errors/errors-and-troubleshooting) when a request fails. A timeout on a write is an unknown outcome, not permission to submit a replacement payment.

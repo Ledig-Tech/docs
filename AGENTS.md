@@ -11,11 +11,11 @@ Operating rules for everyone who edits this repository, human or AI.
 
 ## Source of truth
 
-The `ledig-platform` repository owns the API contract, scopes, error codes, signing rules and behaviour. This repository explains them; it does not define them.
+The backend owns the API contract, scopes, error codes, signing rules and behaviour. This repository explains the released customer contract; it does not define it.
 
-Before documenting an endpoint, scope or field, check the merged code and `docs/api/openapi.yaml` in `ledig-platform`. If the two disagree, stop and raise it; do not invent the missing half.
+Before documenting an endpoint, scope or field, check the owning implementation and the deployed public contract. A source merge alone does not prove deployment or customer availability. If code and contract disagree, raise it; do not invent the missing half.
 
-The public API reference is generated from `ledig-platform` and copied into `openapi/public.yaml`. Do not hand-edit that file and do not add any other OpenAPI document here: Mintlify uploads every specification in the repository and serves it as a downloadable file.
+The public API reference is generated in the backend and copied into `openapi/public.yaml`. Its provenance is recorded in `openapi/source.json`: source revision, SHA-256 digest, operation count and, when available, deployment workflow run ID. Verify the digest and release evidence together. Do not hand-edit the generated specification or add another OpenAPI document; specifications can be served as downloadable files even when absent from navigation.
 
 ## Content boundaries
 
@@ -25,17 +25,19 @@ Never publish:
 - customer records, personal data or real transaction payloads
 - internal admin routes, staff permissions or back-office procedures
 - provider identities, costs or routing logic
+- private repository links, internal plans or operational evidence
 - retired or simulated endpoints as if they were live
-- outbound webhook payloads or event names before delivery is enabled for the public API
+- outbound webhook payloads or event names before the documented access and delivery behaviour are verified
 
 Use placeholders such as `YOUR_API_KEY`, `LEDIG_API_KEY` and `example_quote_id`. Do not create realistic credential-shaped examples.
 
 ## Current environment facts
 
-- Sandbox base URL: `https://api-staging.ledig.io`
-- Production base URL: not published. Do not invent one.
+- Engineering staging: `https://api-staging.ledig.io`, for authorised controlled integration testing. It is not the future customer sandbox, and staging must not be described as universally simulated.
+- The customer sandbox and production access instructions are planned separately. Do not invent their hosts, credentials or test-funding behaviour.
+- Runnable examples use `LEDIG_API_BASE_URL` supplied by Ledig for the approved environment, with no default production target.
 - Support: `admin@ledig.io`
-- Customer outbound webhooks: implemented in the backend, disabled by default and not yet part of the public API. Do not document delivery as live.
+- Customer webhooks depend on deployment configuration and the integration agreement. They are not in the current published endpoint reference. Do not describe them as universally enabled or disabled; publish a delivery contract only after verification.
 
 Recheck these before changing them. A short-lived environment fact does not belong in five pages.
 
@@ -61,28 +63,32 @@ Use Mintlify components already used in this repository: `Card`, `Columns`, `Ste
 ## Mintlify workflow
 
 ```bash
-mint dev
-mint validate
+npm ci
+npm run dev
+npm run check
 ```
 
-`mint validate` must pass before a pull request is ready. `mint dev` serves a local preview on port 3000.
+Use the pinned tools and lockfile. `npm run check` runs the content checks, regression tests, Mintlify validation and broken-link checks. `npm run check:content` runs the repository guard by itself. The local preview runs on port 3000.
 
-Automatic deployment runs from the default branch. That means a merge publishes. Use a branch and the pull request preview, never a direct push to `main`.
+Use a branch and review the rendered changes before merging; never push directly to `main`. The Mintlify project, source repository, branch, root directory and custom-domain mapping must be confirmed before publication. This repository's existence is not proof that it currently serves the live domain. Once the reviewed connection is active, a merge to its deployment branch can publish immediately. Preview URLs may be public.
 
 ## API changes
 
-When `ledig-platform` changes the public contract:
+When the backend changes the public contract:
 
-1. Update the spec in `ledig-platform` in the same pull request.
-2. Let the generated public spec sync into `openapi/public.yaml`.
-3. Update the affected guide and examples here.
-4. Never document a field or operation that the runtime does not return.
+1. Change and validate the owning contract with its implementation.
+2. Copy only the generated customer specification and safe provenance into a reviewable docs pull request.
+3. Update affected guides, examples and navigation; automated copying does not verify prose.
+4. Confirm the documented revision is deployed and appropriate for the intended environment before publication.
+5. Never document a field or operation that the runtime does not return.
 
 ## Review
 
 A pull request is ready when:
 
-- `mint validate` passes
+- `npm run check` and required CI checks pass
+- the generated artifact's digest, operation navigation and source revision agree
+- deployment evidence supports present-tense availability claims
 - internal links resolve
 - no forbidden content from the list above is present
 - examples match the current contract

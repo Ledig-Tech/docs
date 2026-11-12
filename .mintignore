@@ -1,10 +1,17 @@
-# Mintlify automatically ignores these files and directories:
-# .git, .github, .claude, .agents, .idea, node_modules,
-# README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md
-
+# Website exclusions do not make files private in this public repository.
 # Repository instructions and tooling
 AGENTS.md
+README.md
+CONTRIBUTING.md
+LICENSE
+package.json
+package-lock.json
+.github/
+.gitleaksignore
 scripts/
+tests/
+node_modules/
+openapi/source.json
 
 # Draft content
 drafts/

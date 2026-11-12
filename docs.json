@@ -94,6 +94,9 @@
           {
             "group": "Deposit wallets",
             "pages": [
+              "GET /v1/wallets/options",
+              "POST /v1/wallets/network",
+              "GET /v1/wallets/network/{requestId}",
               "GET /v1/wallets",
               "POST /v1/wallets",
               "GET /v1/wallets/{id}"
@@ -102,6 +105,7 @@
           {
             "group": "Recipients",
             "pages": [
+              "GET /v1/recipient-requirements/crypto-networks",
               "GET /v1/recipients",
               "POST /v1/recipients",
               "GET /v1/recipients/{id}",
@@ -117,7 +121,10 @@
           {
             "group": "Payment options",
             "pages": [
-              "GET /v1/quotes/payment-options"
+              "GET /v1/quotes/payment-options",
+              "GET /v1/payouts/catalogue",
+              "POST /v1/payouts/fee-estimate",
+              "GET /v1/quotes/payout-fees"
             ]
           },
           {
@@ -157,6 +164,7 @@
               "DELETE /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}",
               "POST /v1/managed-businesses/{businessId}/onboarding/owners/{ownerId}/verification",
               "POST /v1/managed-businesses/{businessId}/onboarding/documents",
+              "POST /v1/managed-businesses/{businessId}/onboarding/documents/{documentId}/complete",
               "POST /v1/managed-businesses/{businessId}/onboarding/submit",
               "GET /v1/managed-businesses/{businessId}/onboarding/share",
               "POST /v1/managed-businesses/{businessId}/onboarding/share",
@@ -242,5 +250,11 @@
       "source": "/api-reference/models",
       "destination": "/api-reference/introduction"
     }
-  ]
+  ],
+  "api": {
+    "playground": {
+      "display": "simple",
+      "proxy": false
+    }
+  }
 }

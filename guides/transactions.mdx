@@ -3,28 +3,31 @@ title: "Transactions"
 description: "Read the customer transaction history and a single transaction."
 ---
 
-Transactions are the customer-facing record of money movement. They are the right source for history and for polling after a transfer.
+Transactions provide customer history for the selected financial profile. Use them for reconciliation and use the transfer read for payment progress. A history entry does not automatically mean a new balance credit or debit.
 
 ## List transactions
 
 ```http
-GET /v1/transactions?currency=NGN&period=30d&limit=20
+GET /v1/transactions?currency=USDT&period=30d&limit=20
 ```
 
-| Query | Meaning |
-| --- | --- |
-| `status` | Filter by status |
-| `currency` | Filter by currency code |
-| `category` | Filter by category |
-| `type` | Filter by transaction type |
-| `reference` | Filter by reference |
-| `isCredit` | `true` for credits, `false` for debits |
-| `isFiat` | `true` for fiat, `false` for crypto |
-| `period` | `7d`, `30d`, `90d` or `1y` |
-| `from` / `to` | Explicit range; use either this or `period` |
-| `limit` | Page size, at most 100 |
-| `cursor` | Opaque cursor from `pagination.nextCursor` |
-| `sort` | `asc` or `desc` |
+| Query           | Meaning                                     |
+| --------------- | ------------------------------------------- |
+| `status`        | Filter by underlying status                 |
+| `displayStatus` | Filter by current customer-facing status    |
+| `currency`      | Filter by currency code                     |
+| `category`      | Filter by category                          |
+| `type`          | Filter by transaction type                  |
+| `reference`     | Filter by reference                         |
+| `isCredit`      | `true` for credits, `false` for debits      |
+| `isFiat`        | `true` for fiat, `false` for crypto         |
+| `period`        | `7d`, `30d`, `90d` or `1y`                  |
+| `from` / `to`   | Explicit range; use either this or `period` |
+| `limit`         | Page size, at most 100                      |
+| `cursor`        | Opaque cursor from `pagination.nextCursor`  |
+| `sort`          | `asc` or `desc`                             |
+
+This illustrative response excerpt shows selected customer fields:
 
 ```json
 {
@@ -51,7 +54,7 @@ GET /v1/transactions?currency=NGN&period=30d&limit=20
 }
 ```
 
-Amounts are decimal strings. `isCredit` tells you the direction; `isFiat` tells you the rail. Use them instead of parsing the description.
+Amounts are decimal strings. `isCredit` describes the direction and `isFiat` identifies fiat rather than crypto. When `data.affectsBalance` is present, honour that value: an informational record must not be added to your balance calculation. Use Ledig balances as the authoritative available and reserved totals.
 
 ## Read one transaction
 
@@ -59,12 +62,20 @@ Amounts are decimal strings. `isCredit` tells you the direction; `isFiat` tells 
 GET /v1/transactions/{id}
 ```
 
-The detail response returns the same customer fields for one transaction.
+The detail response returns the customer fields for one transaction. It can also include `balanceImpact` for a supported payment; read it as described in [Transfers](/guides/transfers#what-happened-to-the-funds). An absent value is not proof of no financial effect.
+
+Use `displayStatus` and `displayStatusDescription` when returned for customer presentation. A `transactionHash` and `network` identify a chain transaction where available; they do not independently prove a settled balance. Receipt references or download links are available only when returned for the record. Keep those customer resources out of public logs.
+
+## Received funds awaiting release
+
+A received deposit can appear in history before it is available to spend. Such a receipt can carry `data.recordKind: deposit_receipt` and `data.affectsBalance: false`. A customer-facing `displayStatus: frozen` means the received funds remain held; do not show them as available merely because a chain hash or receipt is present.
+
+When the deposit is credited, the normal transaction replaces the receipt-only history entry. The original receipt ID can resolve to the posted transaction, so reconcile by the returned identity and reference instead of adding both amounts.
 
 ## What is not part of the public contract
 
-Ledger line references, internal versions and service metadata are not part of the customer contract. Do not depend on them even if a response currently includes them; the public schema does not guarantee them.
+Use only the fields described by the endpoint response schema. Internal bookkeeping and processing metadata are not part of the customer contract; clients must not depend on accidental fields from an older response.
 
 ## Polling
 
-To follow a transfer, poll [the transfer](/guides/transfers). To reconcile history, page through transactions with the cursor and stop when `pagination.nextCursor` is `null`. See [Pagination](/guides/pagination).
+To follow a transfer, poll [the transfer](/guides/transfers). To reconcile history, page through transactions with the cursor and stop when `pagination.nextCursor` is null or absent. See [Pagination](/guides/pagination).

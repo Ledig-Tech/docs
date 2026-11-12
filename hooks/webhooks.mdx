@@ -1,35 +1,26 @@
 ---
 title: "Webhooks"
-description: "Business webhook subscriptions are implemented but not enabled for the public API yet. Use polling until delivery is announced."
+description: "Confirm event delivery for your integration and reconcile with the read API."
 ---
 
-<Warning>
-  Business webhook subscriptions are implemented in the backend, but delivery is disabled by default and is not enabled for the public API yet. Registration, event names and payloads are not published here because the public contract and per-business enablement are not available.
-</Warning>
+Webhook availability depends on the environment and your business's enabled integration. The current published endpoint reference does not include a general webhook-management or event-payload contract. A website claim or an API deployment does not confirm delivery for your business.
 
-## Use polling for now
+If you need events, agree enablement and the receiver contract with [admin@ledig.io](mailto:admin@ledig.io). Verify an authorised test delivery before relying on notifications. Do not guess event names, payload fields, signature rules or replay endpoints, and do not reuse API request signing as webhook verification.
 
-Every state change is available through the read API. Poll the resource you care about:
+## Use the documented reads
 
-| What you are tracking | Read |
-| --- | --- |
-| Transfer or payout progress | `GET /v1/transfers/{id}` |
-| Transaction history | `GET /v1/transactions` |
-| Account and wallet state | `GET /v1/balances`, `GET /v1/wallets` |
+| What you are tracking       | Read                                  |
+| --------------------------- | ------------------------------------- |
+| Transfer or payout progress | `GET /v1/transfers/{id}`              |
+| Transaction history         | `GET /v1/transactions`                |
+| Spendable funds             | `GET /v1/balances`                    |
+| Network address setup       | `GET /v1/wallets/network/{requestId}` |
+| Existing receiving account  | `GET /v1/virtual-accounts/{currency}` |
 
-Poll with a bounded interval and back off on `429` or `5xx`. Use the cursor returned in `pagination` to walk history rather than re-reading the first page.
+Poll with bounded backoff and honour rate-limit responses. Walk history using returned cursors. Reads show the documented customer state; they are not a promise that every internal state transition becomes a public event.
 
-## What will be published here
+## Before depending on delivery
 
-When webhook delivery is enabled for your business, this page will document:
+Confirm the exact event catalogue, raw-body signature verification, timestamp checks, secret rotation, delivery identifiers, duplicate handling, out-of-order events, retries and replay policy. Use resource reads to reconcile the current outcome even when notifications are enabled.
 
-- how to register and verify an endpoint
-- signature verification and key rotation
-- the event catalogue with exact payloads
-- delivery IDs, retries, ordering and replay
-
-Do not implement a webhook receiver against guessed field names. The event catalogue will be published before delivery is enabled for you.
-
-## Early access
-
-If you need event delivery before the public release, contact [admin@ledig.io](mailto:admin@ledig.io) and describe the events and volume you need.
+Keep receiver secrets on your server. Do not log complete event bodies or signing values, and never use an unverified event to treat a payment as completed.

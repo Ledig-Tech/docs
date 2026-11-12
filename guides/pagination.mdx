@@ -1,55 +1,57 @@
 ---
 title: "Pagination"
-description: "Walk list endpoints with opaque cursors."
+description: "Read cursor pages without losing filters or exposing duplicate records."
 ---
 
-List endpoints that support pagination accept `limit`, `cursor` and `sort`, and return a `pagination` object:
+Paginated operations return customer records in `data` and supported cursors in `pagination`. For example:
 
 ```json
 {
   "status": "success",
   "data": [],
-  "pagination": {
-    "nextCursor": "eyJpZCI6...",
-    "previousCursor": null
-  }
+  "pagination": { "nextCursor": null }
 }
 ```
 
+Cursor fields can be omitted when unavailable. Do not expect records or arbitrary metadata inside `pagination`.
+
 ## Rules
 
-- `limit` is the page size, with a maximum of 100.
-- `cursor` is opaque. Pass back exactly the value you received; do not build or decode one.
-- `sort` is `asc` or `desc`.
-- `nextCursor` is `null` on the last page. Stop there.
-- `previousCursor` is `null` on the first page.
-- Do not assume a default page size. Always read `pagination.nextCursor`.
+- Set `limit` to a supported page size, at most 100 for the lists below.
+- Pass the returned cursor exactly as received; do not build or decode it.
+- Keep filters and `sort` unchanged during a page walk. Changing them starts a new walk.
+- Stop when `nextCursor` is null or absent. `previousCursor` may be null or omitted when unavailable.
+- A cursor walk is not a frozen snapshot. Reconcile records by their IDs when processing a changing history.
 
 ## Walk a list
+
+This illustrative helper assumes your `signedGet` function implements [authentication](/auth/authentication) with a fresh signature for the exact path and query:
 
 ```js
 let cursor;
 const rows = [];
 
 do {
-  const query = new URLSearchParams({ limit: "100", ...(cursor ? { cursor } : {}) });
+  const query = new URLSearchParams({
+    limit: "100",
+    sort: "desc",
+    ...(cursor ? { cursor } : {}),
+  });
   const response = await signedGet(`/v1/transactions?${query}`);
-  const body = await response.json();
-
-  rows.push(...body.data);
-  cursor = body.pagination?.nextCursor ?? null;
+  if (!response.ok)
+    throw new Error(`History read failed: HTTP ${response.status}`);
+  const page = await response.json();
+  rows.push(...page.data);
+  cursor = page.pagination?.nextCursor ?? null;
 } while (cursor);
 ```
 
-`signedGet` is your request helper with the headers from [Authentication](/auth/authentication).
+Handle temporary errors and rate limits using a bounded read-retry policy. Do not log complete customer pages.
 
-## Pages and resources
-
-| Endpoint | Pagination |
-| --- | --- |
-| `GET /v1/transactions` | Yes |
-| `GET /v1/quotes` | Yes |
-| `GET /v1/recipients` | Yes |
-| `GET /v1/wallets` | No; returns the profile's wallets |
-
-A cursor is only valid for the filters and sort it was created with. Changing a filter starts a new walk.
+| Endpoint                     | Pagination                                                                |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `GET /v1/transactions`       | Cursor pages.                                                             |
+| `GET /v1/quotes`             | Cursor pages.                                                             |
+| `GET /v1/recipients`         | Cursor pages.                                                             |
+| `GET /v1/wallets`            | Returns the profile's wallets without cursor pagination.                  |
+| `GET /v1/managed-businesses` | Returns the current managed-business directory without cursor pagination. |
