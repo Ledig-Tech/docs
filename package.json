@@ -17,5 +17,13 @@
   "devDependencies": {
     "mint": "4.3.19",
     "yaml": "2.9.1"
+  },
+  "overrides": {
+    "@mintlify/cli": {
+      "sharp": "0.35.5"
+    },
+    "@mintlify/package-builder": {
+      "js-yaml": "4.3.2"
+    }
   }
 }

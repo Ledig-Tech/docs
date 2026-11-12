@@ -3689,7 +3689,10 @@ components:
         minimumAmount:
           type: string
         maximumAmount:
-          type: string
+          type:
+            - string
+            - "null"
+          description: Null means no crypto payout route maximum; requires a zero minimum. Fiat remains bounded.
         supportConversion:
           type: boolean
         executionMode:
@@ -3838,7 +3841,10 @@ components:
         minimumAmount:
           type: string
         maximumAmount:
-          type: string
+          type:
+            - string
+            - "null"
+          description: Null means no crypto payout route maximum; requires a zero minimum. Fiat remains bounded.
         amountWithinLimits:
           type: boolean
         pricing:
@@ -4524,7 +4530,10 @@ components:
         minimumAmount:
           type: string
         maximumAmount:
-          type: string
+          type:
+            - string
+            - "null"
+          description: Null means no crypto payout route maximum; requires a zero minimum. Fiat remains bounded.
         pricing:
           oneOf:
             - $ref: "#/components/schemas/PayoutCustomerFeeTermsAvailable"

@@ -21,6 +21,8 @@ npm run check
 
 The check command runs the content guard, regression tests, Mintlify validation and broken-link checks. Use `npm run check:content` for the content guard alone. The lockfile pins transitive dependencies, and the preview renderer revision is pinned in package scripts; update tools in a reviewed change. The renderer download still requires a network connection.
 
+Temporary, narrowly scoped npm overrides update the Mintlify CLI's `sharp` dependency to `0.35.5` and the optional package builder's `js-yaml` dependency to `4.3.2`, because the pinned upstream tools still require versions affected by published security advisories. These overrides cover this repository's local and CI tools; they do not establish the versions used by Mintlify's managed service. When upgrading Mintlify, remove an override only after the resolved dependency is patched and the full documentation checks, asset rendering and `npm audit` pass.
+
 ## Structure
 
 | Path | Purpose |
