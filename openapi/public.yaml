@@ -1997,6 +1997,14 @@ paths:
             minLength: 1
             maxLength: 200
           description: Destination Ledig business for direct internal-transfer discovery. Mutually exclusive with recipientId; requires withdraw and no chain.
+        - in: query
+          name: paymentMethodId
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Selected withdrawal method to explain. Existing eligible data stays unchanged; quote and payout admission remain authoritative.
       responses:
         "200":
           description: Eligible deposit or withdrawal payment options.
@@ -2009,6 +2017,8 @@ paths:
                     required:
                       - data
                     properties:
+                      availability:
+                        $ref: "#/components/schemas/PayoutSelectionAvailability"
                       data:
                         type: array
                         items:
@@ -3042,11 +3052,11 @@ components:
         code:
           type: string
         details:
-          description: "Only reviewed remediation details are public: onboarding validation for422 BAD_REQUEST, current_password_incorrect for400 BAD_REQUEST, or the caller’s conversion allowance for409 INSTANT_CONVERSION_LIMIT_EXCEEDED. General exception, provider and compliance review details are never serialized."
+          description: "Only reviewed remediation details are public: fixed document validation, operation-specific reasons, exact conversion bounds, payout USD limits and conversion allowances. Status/code pairs are validated by the API boundary; arbitrary exception, provider and compliance review details are never serialized."
           oneOf:
             - type: object
               additionalProperties: false
-              description: Optional allowlisted onboarding file-validation details for HTTP 422 BAD_REQUEST only. General exception details and provider payloads are never serialized here.
+              description: Optional allowlisted onboarding file-validation details for HTTP 400, 413 or 422 BAD_REQUEST only. General exception details and provider payloads are never serialized here.
               required:
                 - validationCode
                 - reasonCode
@@ -3074,6 +3084,11 @@ components:
                   maxLength: 128
                 requirementType:
                   type: string
+                maxSizeBytes:
+                  type: integer
+                  minimum: 1
+                  maximum: 1073741824
+                  description: Only present for HTTP 413 when validated.
             - type: object
               additionalProperties: false
               required:
@@ -3081,7 +3096,28 @@ components:
               properties:
                 reason:
                   type: string
-                  const: current_password_incorrect
+                  enum:
+                    - current_password_incorrect
+                    - recipient_unavailable
+                    - recipient_incompatible
+                    - payout_method_unavailable
+                    - payout_method_incompatible
+                    - network_unavailable
+                    - quote_expired
+                    - quote_already_used
+                    - quote_changed
+                    - invoice_required
+                    - invoice_invalid
+                    - amount_invalid
+                    - amount_precision_invalid
+                    - onboarding_revision_required
+                    - onboarding_revision_changed
+                    - onboarding_document_kind_mismatch
+                precision:
+                  type: integer
+                  minimum: 0
+                  maximum: 18
+                  description: Only present for amount_precision_invalid.
             - type: object
               additionalProperties: false
               required:
@@ -3116,6 +3152,58 @@ components:
                 timezone:
                   type: string
                   const: UTC
+            - type: object
+              additionalProperties: false
+              required:
+                - sourceCurrency
+                - minimumAmount
+                - maximumAmount
+              properties:
+                sourceCurrency:
+                  type: string
+                minimumAmount:
+                  type: string
+                maximumAmount:
+                  type: string
+              description: HTTP 422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE only. Bounds apply to the source conversion amount.
+            - type: object
+              additionalProperties: false
+              required:
+                - currency
+                - requestedUsd
+                - limitUsd
+              properties:
+                currency:
+                  type: string
+                  const: USD
+                requestedUsd:
+                  type: string
+                limitUsd:
+                  type: string
+              description: HTTP 422 PAYOUT_TRANSACTION_LIMIT_EXCEEDED only. USD valuation is distinct from the payout-currency route bounds.
+            - type: object
+              additionalProperties: false
+              required:
+                - currency
+                - requestedUsd
+                - remainingUsd
+                - resetsAt
+                - timezone
+              properties:
+                currency:
+                  type: string
+                  const: USD
+                requestedUsd:
+                  type: string
+                remainingUsd:
+                  type: string
+                resetsAt:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                  const: UTC
+              description: HTTP 422 PAYOUT_MONTHLY_LIMIT_EXCEEDED only. Remaining allowance and reset time are business scoped.
     ManagedBusiness:
       type: object
       additionalProperties: false
@@ -3654,6 +3742,44 @@ components:
                   type: string
                 previousCursor:
                   type: string
+    PayoutSelectionAvailability:
+      type: object
+      additionalProperties: false
+      required:
+        - paymentMethodId
+        - currency
+        - available
+      properties:
+        paymentMethodId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        currency:
+          type: string
+        chain:
+          type: string
+          minLength: 1
+          maxLength: 100
+        available:
+          type: boolean
+        reason:
+          type: string
+          enum:
+            - payout_amount_out_of_range
+            - payout_amount_unavailable
+            - recipient_incompatible
+            - network_unavailable
+            - payout_unavailable
+          description: Fixed customer categories. Provider configuration, compliance review and internal eligibility diagnostics remain private.
+        requested:
+          type: string
+        minimumAmount:
+          type: string
+        maximumAmount:
+          type:
+            - string
+            - "null"
+      description: Optional selected-method explanation. Amount boundaries describe the payout route in destination currency only, never the conversion range or a promise of continuous provider coverage.
     PaymentOption:
       type: object
       additionalProperties: false
