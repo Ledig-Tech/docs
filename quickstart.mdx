@@ -1,35 +1,59 @@
 ---
 title: "Quickstart"
-description: "Configure access and make a first signed read request."
+description: "Set up your API key and make your first request."
 ---
 
+This guide starts with a balance read, so you can check your connection and authentication before creating a payment.
+
 <Steps>
-  <Step title="Confirm your environment and business">
-    Request access through [ledig.io](https://www.ledig.io/contact). Agree the approved integration environment and business with Ledig. Read [Environments](/introduction#environments) before testing.
+  <Step title="Get access">
+    Request a business account through [ledig.io](https://www.ledig.io/contact) and complete onboarding. Contact [support@ledig.io](mailto:support@ledig.io) for sandbox access.
   </Step>
   <Step title="Create an API key">
-    An authorised business administrator creates a key in the dashboard. Select only the permissions the integration needs. Keep the API key and secret in server-side secret storage; the secret is shown once.
+    Ask your business administrator to create an API key in the dashboard. For this example, the key needs the `balances:read` permission or read-only access. Save the secret when it is shown; you cannot view it again.
   </Step>
-  <Step title="Set the API origin">
-    Set `LEDIG_API_BASE_URL` to the approved HTTPS origin, without a trailing path. Configure `LEDIG_API_KEY` and `LEDIG_API_SECRET` securely. Do not paste credentials into source files or command history.
-  </Step>
-  <Step title="Check connectivity">
-    The public health route needs no signature:
+  <Step title="Choose Sandbox">
+    Set the API URL:
 
     ```bash
-    : "${LEDIG_API_BASE_URL:?Set the approved API origin first}"
+    export LEDIG_API_BASE_URL="https://sandbox.ledig.io"
+    ```
+
+    Add `LEDIG_API_KEY` and `LEDIG_API_SECRET` to your application's server-side secret configuration. Use your sandbox credentials.
+  </Step>
+  <Step title="Check the connection">
+    The health endpoint does not require authentication:
+
+    ```bash
+    : "${LEDIG_API_BASE_URL:?Choose your API URL first}"
     curl --fail-with-body "${LEDIG_API_BASE_URL%/}/v1/health"
     ```
 
-    A healthy process returns `{ "status": "ok" }`. This checks API reachability, not database access, service eligibility or payment readiness.
+    A successful response is:
+
+    ```json
+    { "status": "ok" }
+    ```
 
   </Step>
-  <Step title="Make a signed read">
-    Use the runnable examples in [Authentication](/auth/authentication#examples) to call `GET /v1/balances`. Sign the exact method, path with query, timestamp and body sent. Never put the secret into a request header.
+  <Step title="Read your USD balance">
+    Use the [Node.js or Python authentication example](/auth/authentication#examples) to call `GET /v1/balances/USD`. It calculates a fresh signature and sends the required headers for you.
+
+    The balance fields in a successful response look like this. These are fictional amounts:
+
+    ```json
+    {
+      "currency": "USD",
+      "available": "1250.00",
+      "reserved": "100.00"
+    }
+    ```
+
+    `available` is the amount you can use. `reserved` is set aside for payments in progress. See [Balances](/guides/balances) for the full response and balance behaviour.
   </Step>
-  <Step title="Choose your workflow">
-    Discover currencies with `GET /v1/currencies`. Follow [Funding](/guides/funding) for receiving accounts and addresses, or [Quotes](/guides/quotes) for conversion and payout pricing. Complete an approved test scenario before enabling payment writes in your application.
+  <Step title="Build your payment flow">
+    Follow [Funding](/guides/funding) to receive money or [Quotes](/guides/quotes) to convert currencies and send payments. Test the flows your application needs before switching to [Live](/introduction#environments).
   </Step>
 </Steps>
 
-Use [Errors and troubleshooting](/errors/errors-and-troubleshooting) when a request fails. A timeout on a write is an unknown outcome, not permission to submit a replacement payment.
+If a request fails, use [Errors and troubleshooting](/errors/errors-and-troubleshooting). If a payment request times out, follow the [retry rules](/guides/idempotency) to avoid creating a duplicate.

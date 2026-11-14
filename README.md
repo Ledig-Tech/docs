@@ -1,6 +1,6 @@
-# Ledig developer docs
+# Ledig payments documentation
 
-Public developer documentation for Ledig, built with [Mintlify](https://mintlify.com). The intended publication domain is [docs.ledig.io](https://docs.ledig.io); confirm its Mintlify project and repository mapping before publishing this source.
+Customer documentation for Ledig's payments engine, built with [Mintlify](https://mintlify.com). These guides explain how to receive funds, manage balances, convert currencies and send payments. The separate onchain hedging product is documented at [Ledig Derivatives](https://docs.derivatives.ledig.io/).
 
 ## Local development
 
@@ -52,4 +52,4 @@ Require review and successful checks on the deployment branch. Keep the previous
 
 ## Support
 
-Questions about the API or access: [admin@ledig.io](mailto:admin@ledig.io).
+Questions about the API or access: [support@ledig.io](mailto:support@ledig.io).

@@ -1,11 +1,13 @@
 ---
 title: "Balances"
-description: "Read available and reserved balances from the Ledig ledger."
+description: "See how much you can spend and how much is held for payments."
 ---
 
-## Read balances
+Your business has one balance for each currency. Use balances to check your funds before creating a conversion or payment.
 
-`GET /v1/balances` returns one balance per currency held by the profile. Illustrative response excerpt:
+## Read your balances
+
+Call `GET /v1/balances` to list your balances. This example uses fictional amounts:
 
 ```json
 {
@@ -17,28 +19,30 @@ description: "Read available and reserved balances from the Ledig ledger."
 }
 ```
 
-`GET /v1/balances/{currency}` returns a single currency:
+To read one currency, include its code in the path:
 
 ```http
 GET /v1/balances/NGN
 ```
 
-If the profile has never held that currency, the read creates the balance record and returns zero. A balance read is safe to repeat.
+A currency you have not held before returns a zero balance. You can safely repeat these requests.
 
-## What the fields mean
+## Understand the amounts
 
-| Field       | Meaning                                                                        |
-| ----------- | ------------------------------------------------------------------------------ |
-| `currency`  | Currency code, uppercase                                                       |
-| `available` | Amount available before the requested operation's eligibility and limit checks |
-| `reserved`  | Amount held for an in-flight operation                                         |
+| Field | Meaning |
+| --- | --- |
+| `currency` | The currency code, such as `NGN` or `USDT`. |
+| `available` | Funds available to spend, subject to the payment's fees, limits and requirements. |
+| `reserved` | Funds held for a payment that is still being processed. |
 
-Amounts are decimal strings, not numbers. Parse them with a decimal type and never with floating point. The currency's precision is part of the currency catalogue.
+In the example above, you have **250 USDT available** and **25 USDT held**. The held amount cannot be spent on another payment.
 
-Balances are per profile and currency. A crypto wallet holds receiving addresses, not a separate balance. Available funds do not themselves establish that a recipient, route or payment is eligible.
+Amounts are returned as decimal strings. Use a decimal library for calculations so you do not lose precision. Read each currency's decimal precision from `GET /v1/currencies`.
 
-## Where balances come from
+## Follow balance changes
 
-Ledger postings own every balance. A provider webhook or a successful provider response does not change a balance on its own; the owning service and the ledger complete the movement before the balance reflects it.
+Use [Transactions](/guides/transactions) to see deposits, conversions and payments. A deposit may need processing before it becomes available. A failed payment may also need time for held funds to be released or deducted funds to be returned.
 
-Use [Transactions](/guides/transactions) to see what produced a balance change.
+Read your balance again to confirm the amount available. For a payment's funds status, see [Transfers](/guides/transfers#what-happened-to-the-funds).
+
+Crypto deposit addresses receive funds into your business's currency balance; each address does not have a separate spendable balance.

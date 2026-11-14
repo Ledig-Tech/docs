@@ -1,35 +1,25 @@
 ---
 title: "Pagination"
-description: "Read cursor pages without losing filters or exposing duplicate records."
+description: "Read long lists one page at a time."
 ---
 
-Paginated operations return customer records in `data` and supported cursors in `pagination`. For example:
+Transaction, quote and recipient lists use cursors to let you request the next page. Set `limit` to the number of records you want, from 1 to 100.
 
-```json
-{
-  "status": "success",
-  "data": [],
-  "pagination": { "nextCursor": null }
-}
+For example, start with:
+
+```text
+GET /v1/transactions?limit=25&sort=desc
 ```
 
-Cursor fields can be omitted when unavailable. Do not expect records or arbitrary metadata inside `pagination`.
+Records appear in `data`. If more records are available, `pagination.nextCursor` contains the cursor for your next request. Pass that value back in the `cursor` query parameter without changing it.
 
-## Rules
+## Read every page
 
-- Use `limit` of 1–100 for the paginated lists below.
-- Pass the returned cursor exactly as received; do not build or decode it.
-- Keep filters and `sort` unchanged during a page walk. Changing them starts a new walk.
-- Stop when `nextCursor` is null or absent. `previousCursor` may be null or omitted when unavailable.
-- A cursor walk is not a frozen snapshot. Reconcile records by their IDs when processing a changing history.
-
-## Walk a list
-
-This illustrative helper assumes your `signedGet` function implements [authentication](/auth/authentication) with a fresh signature for the exact path and query:
+This example assumes your `signedGet` helper signs the exact URL path and query using the [authentication instructions](/auth/authentication).
 
 ```js
 let cursor;
-const rows = [];
+const transactions = [];
 
 do {
   const query = new URLSearchParams({
@@ -38,22 +28,32 @@ do {
     ...(cursor ? { cursor } : {}),
   });
   const response = await signedGet(`/v1/transactions?${query}`);
-  if (!response.ok)
-    throw new Error(`History read failed: HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`Could not read transactions: HTTP ${response.status}`);
+  }
   const page = await response.json();
-  rows.push(...page.data);
+  transactions.push(...page.data);
   cursor = page.pagination?.nextCursor ?? null;
 } while (cursor);
 ```
 
-Handle temporary errors and rate limits using a bounded read-retry policy. Do not log complete customer pages.
+- Stop when `nextCursor` is `null` or missing.
+- Keep the same filters and sort order while requesting more pages.
+- Do not create or decode cursors yourself.
+- Use each record's ID to avoid duplicates if new transactions arrive while you are reading the list.
 
-| Endpoint                     | Pagination                                                                |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `GET /v1/transactions`       | Cursor pages.                                                             |
-| `GET /v1/quotes`             | Cursor pages.                                                             |
-| `GET /v1/recipients`         | Cursor pages.                                                             |
-| `GET /v1/wallets`            | Returns the profile's wallets without cursor pagination.                  |
-| `GET /v1/managed-businesses` | Returns the current managed-business directory without cursor pagination. |
+Some responses also include `previousCursor`. It can be `null` or missing when there is no previous page.
 
-For `GET /v1/recipients`, a positive integer above 100 is accepted and capped at 100. For example, `limit=150` returns at most 100 recipients; it does not produce an error solely for exceeding 100. Continue with `nextCursor` to read more. Zero, negative and non-integer limits are invalid. Do not assume other list endpoints have the same capping behaviour.
+## Endpoints with pagination
+
+| Endpoint | How results are returned |
+| --- | --- |
+| `GET /v1/transactions` | Cursor pages. |
+| `GET /v1/quotes` | Cursor pages. |
+| `GET /v1/recipients` | Cursor pages. |
+| `GET /v1/wallets` | All your wallets, without pagination. |
+| `GET /v1/managed-businesses` | Your managed-business directory, without pagination. |
+
+For recipients, a `limit` above 100 is capped at 100. For example, `limit=150` returns at most 100 recipients. Zero, negative values and fractions are invalid. Other lists may reject values above their limit.
+
+For temporary failures or rate limits, follow [Retries and idempotency](/guides/idempotency).

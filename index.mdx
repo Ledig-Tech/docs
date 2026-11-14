@@ -1,34 +1,39 @@
 ---
-title: "Ledig developer docs"
-description: "Build collection, conversion and settlement into your business."
+title: "Ledig payments API"
+description: "Receive funds, hold balances, convert currencies and send payments."
 ---
 
-Ledig gives approved business integrations an API for receiving funds, holding currency balances, converting and making payments.
+Build payments into your business with Ledig's payments engine. Use one API to receive bank and stablecoin deposits, manage balances, convert currencies and pay recipients.
 
 <Columns cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Get access, configure your environment and sign a first request.
+  <Card title="Make your first request" icon="rocket" href="/quickstart">
+    Choose an environment, create an API key and read your balance.
   </Card>
-  <Card title="Authentication" icon="key" href="/auth/authentication">
-    Sign requests and select the correct business.
+  <Card title="Receive funds" icon="wallet" href="/guides/funding">
+    Get bank account details and crypto deposit addresses for your business.
+  </Card>
+  <Card title="Convert and send" icon="arrows-rotate" href="/guides/quotes">
+    Get a quote with the rate, fees and amount your recipient will receive.
   </Card>
   <Card title="API reference" icon="code" href="/api-reference/introduction">
-    Read the supported operations and their request and response fields.
-  </Card>
-  <Card title="Funding" icon="wallet" href="/guides/funding">
-    Request receiving accounts and deposit addresses, then track setup.
+    Find endpoints, request examples and response fields.
   </Card>
 </Columns>
 
-## Build the payment journey
+## Build your payment flow
 
-| Step                             | Guide                                            |
-| -------------------------------- | ------------------------------------------------ |
-| Read available funds             | [Balances](/guides/balances)                     |
-| Save a payout destination        | [Recipients](/guides/recipients)                 |
-| Confirm a rate, fees and expiry  | [Quotes](/guides/quotes)                         |
-| Execute once and follow progress | [Transfers](/guides/transfers)                   |
-| Reconcile outcomes               | [Transactions](/guides/transactions)             |
-| Onboard businesses you manage    | [Managed businesses](/guides/managed-businesses) |
+| I want to… | Start here |
+| --- | --- |
+| Check available funds | [Balances](/guides/balances) |
+| Save a bank account or wallet to pay | [Recipients](/guides/recipients) |
+| Understand minimums and maximums | [Limits](/guides/limits) |
+| Confirm a rate and fees | [Quotes](/guides/quotes) |
+| Make a payment and track its progress | [Transfers](/guides/transfers) |
+| View payment history | [Transactions](/guides/transactions) |
+| Onboard businesses I manage | [Managed businesses](/guides/managed-businesses) |
 
-Access, currencies and payment methods depend on your business's approved services. Start with [environments and access](/introduction#environments); a documentation preview is not an API sandbox.
+Start in [Sandbox](/introduction#environments) with your sandbox credentials. When your integration is ready, use your live credentials and the Live API URL.
+
+Ledig also offers a separate [onchain derivatives engine for FX hedging](https://docs.derivatives.ledig.io/). These pages cover the payments engine.
+
+Need help getting started? Contact [support@ledig.io](mailto:support@ledig.io).

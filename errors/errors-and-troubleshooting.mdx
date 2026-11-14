@@ -1,11 +1,11 @@
 ---
 title: "Errors and troubleshooting"
-description: "Handle failures safely and preserve enough information to reconcile outcomes."
+description: "Understand API errors and know what to do next."
 ---
 
-## Response envelope
+## Read an error
 
-Most JSON operations use `status: success` with `data`, or this error shape:
+When a request fails, the HTTP status tells you the type of failure. The response usually includes a `code` and a message:
 
 ```json
 {
@@ -15,35 +15,35 @@ Most JSON operations use `status: success` with `data`, or this error shape:
 }
 ```
 
-Some operations return a message, no content or a route-specific response; use the endpoint reference. Health uses `{ "status": "ok" }`. Paginated lists add supported cursor fields. Error `details`, when present, contains the bounded information documented for that error, such as field-validation or allowance information.
+Use the HTTP status and `code` in your application logic. The message explains the problem, but its wording can change. Some errors also include `details`, such as the minimum and maximum amount allowed.
 
-Use the HTTP status and `code` for control flow; messages can change. Never display or depend on raw debugging data.
+Successful responses usually contain `status: "success"` and `data`. Check each endpoint for its exact response.
 
 ## Common errors
 
-| Status        | Code or situation                                    | Action                                                                                                           |
-| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `400`         | `BAD_REQUEST`, `INVALID_JSON`                        | Correct the request shape, values or currency precision.                                                         |
-| `401`         | `AUTH_FAILED`                                        | Check credential state, timestamp and the exact signed bytes.                                                    |
-| `403`         | `MISSING_SCOPE`, `SERVICE_NOT_INCLUDED`, `FORBIDDEN` | Check permission, enabled product and selected business.                                                         |
-| `404`         | `NOT_FOUND`                                          | Confirm the resource ID and business context.                                                                    |
-| `404`         | `RATE_NOT_FOUND`                                     | Check the currency pair and current conversion discovery; an executable price is unavailable.                    |
-| `409`         | `IDEMPOTENCY_CONFLICT`                               | Resolve a key/body mismatch or conflicting transfer quote/reference identities; do not invent a replacement key. |
-| `409`         | `INSUFFICIENT_BALANCE`                               | Confirm the total source debit, including fees, and available funds.                                             |
-| `409`         | `INSTANT_CONVERSION_LIMIT_EXCEEDED`                  | Read the returned safe allowance details and reconcile any earlier attempt.                                      |
-| `413` / `414` | Request body or URL too large                        | Reduce the request to the endpoint's limits.                                                                     |
-| `422`         | `RATE_ROUTE_AMOUNT_OUT_OF_RANGE`                    | Adjust the source amount to the returned conversion bounds.                                                      |
-| `422`         | Payout transaction or monthly limit exceeded         | Review current business limits. Repeating unchanged input does not bypass the cap.                               |
-| `423`         | `COMPLIANCE_REVIEW_REQUIRED`                         | The operation needs review; do not create replacement payments to bypass it.                                     |
-| `429`         | `RATE_LIMITED`                                       | Honour `Retry-After` when supplied and reduce request rate.                                                      |
-| `500` / `503` | Temporary or unexpected service failure              | Back off reads; reconcile uncertain writes under their replay contract.                                          |
-| `501`         | `NOT_IMPLEMENTED`                                    | The requested operation is not available.                                                                        |
+| HTTP status | Code or situation | What to do |
+| --- | --- | --- |
+| `400` | `BAD_REQUEST`, `INVALID_JSON` | Check required fields, JSON formatting and amount precision. |
+| `401` | `AUTH_FAILED` | Check your API key, signature and timestamp. |
+| `403` | `MISSING_SCOPE`, `SERVICE_NOT_INCLUDED`, `FORBIDDEN` | Check the key's permissions and the services available to your business. |
+| `404` | `NOT_FOUND` | Check the resource ID and the business you selected. |
+| `404` | `RATE_NOT_FOUND` | A conversion price is unavailable for the selected currencies. Try again later. |
+| `409` | `IDEMPOTENCY_CONFLICT` | Check that the retry key, body, quote ID and reference match your original request. |
+| `409` | `INSUFFICIENT_BALANCE` | Check that your available source balance covers the amount and fees. |
+| `409` | `INSTANT_CONVERSION_LIMIT_EXCEEDED` | Read the allowance details and check any earlier attempt before retrying. |
+| `413` / `414` | Request body or URL too large | Reduce the size of the request. |
+| `422` | `RATE_ROUTE_AMOUNT_OUT_OF_RANGE` | Use a source amount within the returned conversion limits. |
+| `422` | Per-payment or monthly payout limit exceeded | Check your business's [limits](/guides/limits). |
+| `423` | `COMPLIANCE_REVIEW_REQUIRED` | The operation needs review. Contact support if you need an update. |
+| `429` | `RATE_LIMITED` | Slow down your requests and follow `Retry-After` when returned. |
+| `500` / `503` | Temporary or unexpected failure | Wait before retrying reads. For writes, follow the [retry guide](/guides/idempotency). |
+| `501` | `NOT_IMPLEMENTED` | The requested operation is not available. |
 
-Codes are additive. Handle unknown codes as errors using their HTTP status. Individual endpoints document additional codes and limits.
+Endpoints may return additional codes. Handle unrecognised codes as errors using the HTTP status.
 
-## Field validation
+## Fix a missing or invalid field
 
-A malformed request returns `400 BAD_REQUEST`. When a known field is missing or invalid, the message names its path. For example, omitting the transfer's `quoteId` returns:
+A missing or invalid field usually returns `400 BAD_REQUEST`. For example, a transfer request without `quoteId` returns:
 
 ```json
 {
@@ -53,13 +53,17 @@ A malformed request returns `400 BAD_REQUEST`. When a known field is missing or 
 }
 ```
 
-For a quote with an external payout, a missing recipient can return `payOut.recipientId is required.`. Correct that field and validate the rest of the request. These field-validation messages do not echo submitted values, and some validation failures use a general message. Do not parse message text as a stable error code.
+Add the missing field and check the rest of your request. A message such as `payOut.recipientId is required.` points to `recipientId` inside `payOut`.
 
-## Quote error examples
+<span id="quote-error-examples" />
 
-These illustrative responses show different failures; their amounts are examples, not your configured limits.
+## Understand quote errors
 
-An unavailable executable price returns `404`:
+These examples use fictional amounts. Read the values in your own response for the limits that apply to your business.
+
+### No conversion price
+
+A quote can return `404` when a price is unavailable:
 
 ```json
 {
@@ -69,7 +73,9 @@ An unavailable executable price returns `404`:
 }
 ```
 
-A conversion amount outside the direction's range returns `422`:
+### Amount outside the conversion limits
+
+A quote can return `422` when the amount you want to convert is too small or too large:
 
 ```json
 {
@@ -84,7 +90,11 @@ A conversion amount outside the direction's range returns `422`:
 }
 ```
 
-Insufficient available funds returns `409`:
+This limit applies to the **source amount** you are converting. A payout method's limit applies to the **destination amount** being sent. Business payout allowances are measured in USD equivalent. See [Limits](/guides/limits) for the difference.
+
+### Not enough available funds
+
+A quote can return `409` when your available source balance is too low:
 
 ```json
 {
@@ -94,27 +104,34 @@ Insufficient available funds returns `409`:
 }
 ```
 
-Conversion bounds use the source amount. Payout method or network bounds use the destination amount. Account allowance errors use USD-equivalent amounts. Read [Limits](/guides/limits) to display the correct explanation and units.
+Check the amount and all fees against your available balance.
 
-## Retries
+## Retry after a failure
 
-Read requests can use exponential backoff with jitter and a bounded attempt budget after temporary failures. A timeout or `5xx` on a write can occur after acceptance. It is not evidence that nothing happened.
+For temporary read failures, wait before trying again and increase the delay after repeated failures.
 
-Follow [operation-specific retry rules](/guides/idempotency): retain the original wallet/account key and body, the network setup request ID, or the transfer quote/reference. Do not generate a new key or quote merely to escape an error. After changing a rejected request, first establish that the original attempt has no unresolved outcome.
+A timeout or `5xx` response on a write does not mean the request failed. It may already have been processed. Keep the original request identifiers and use the [retry rules](/guides/idempotency) to check or recover the result before creating another payment.
 
-## Request IDs and safe diagnostics
+## Request IDs
 
-Ledig returns `x-request-id` on successful responses and errors, including authentication rejections. Retain it when reporting an issue. A client-supplied request ID must use 8–128 characters from letters, digits, `.`, `_`, `:`, or `-`. A valid value is preserved; an omitted or invalid value is replaced with a generated ID. The ID helps correlate a request; it does not authenticate it.
+Every API response includes an `x-request-id` header. Save this ID when a request fails so support can locate it.
 
-Record the request ID, time, environment label, HTTP method, path template, status and error code. For example, record `/v1/transfers/{id}` rather than a complete URL with sensitive query values.
+You can also send your own `x-request-id`. Use 8–128 characters containing only letters, digits, `.`, `_`, `:` or `-`. Ledig keeps a valid ID and generates one if it is missing or invalid.
 
-Never log credentials, signatures, complete signing payloads, complete request/response bodies, customer documents or upload capability URLs. Redact customer details before sharing diagnostics with support.
+When contacting support, include:
 
-## Debugging checklist
+- The request ID and approximate time.
+- Sandbox or Live.
+- The HTTP method and endpoint, such as `GET /v1/balances/USD`.
+- The HTTP status and error code.
 
-1. Confirm `LEDIG_API_BASE_URL` matches the [approved environment](/introduction#environments).
-2. Check the timestamp uses Unix seconds and the local clock is synchronized.
-3. Check that signing used the exact path, query and body sent; compare locally without logging their sensitive contents.
-4. Confirm the required scope and service are enabled for the selected business.
-5. For delegated requests, confirm HMAC v2 and the business-selection headers.
-6. Contact [admin@ledig.io](mailto:admin@ledig.io) with the request ID and redacted diagnostics if the outcome remains uncertain.
+Do not include API keys, secrets, signatures or customer documents.
+
+## Troubleshooting checklist
+
+1. Check that your API URL and credentials belong to the same [environment](/introduction#environments).
+2. Use the current Unix timestamp in seconds and keep your server clock in sync.
+3. Sign the exact method, path, query string and body you send.
+4. Check the API key's required permissions.
+5. If acting for a managed business, use HMAC v2 and the correct business-selection headers.
+6. Contact [support@ledig.io](mailto:support@ledig.io) with the request ID if you need help.
