@@ -75,7 +75,8 @@
             "group": "Currencies and rates",
             "pages": [
               "GET /v1/currencies",
-              "GET /v1/rates"
+              "GET /v1/rates",
+              "GET /v1/liquidity/routes"
             ]
           },
           {
