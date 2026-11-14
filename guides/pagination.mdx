@@ -17,7 +17,7 @@ Cursor fields can be omitted when unavailable. Do not expect records or arbitrar
 
 ## Rules
 
-- Set `limit` to a supported page size, at most 100 for the lists below.
+- Use `limit` of 1–100 for the paginated lists below.
 - Pass the returned cursor exactly as received; do not build or decode it.
 - Keep filters and `sort` unchanged during a page walk. Changing them starts a new walk.
 - Stop when `nextCursor` is null or absent. `previousCursor` may be null or omitted when unavailable.
@@ -55,3 +55,5 @@ Handle temporary errors and rate limits using a bounded read-retry policy. Do no
 | `GET /v1/recipients`         | Cursor pages.                                                             |
 | `GET /v1/wallets`            | Returns the profile's wallets without cursor pagination.                  |
 | `GET /v1/managed-businesses` | Returns the current managed-business directory without cursor pagination. |
+
+For `GET /v1/recipients`, a positive integer above 100 is accepted and capped at 100. For example, `limit=150` returns at most 100 recipients; it does not produce an error solely for exceeding 100. Continue with `nextCursor` to read more. Zero, negative and non-integer limits are invalid. Do not assume other list endpoints have the same capping behaviour.
