@@ -24,3 +24,16 @@ Poll with bounded backoff and honour rate-limit responses. Walk history using re
 Confirm the exact event catalogue, raw-body signature verification, timestamp checks, secret rotation, delivery identifiers, duplicate handling, out-of-order events, retries and replay policy. Use resource reads to reconcile the current outcome even when notifications are enabled.
 
 Keep receiver secrets on your server. Do not log complete event bodies or signing values, and never use an unverified event to treat a payment as completed.
+
+## Environment label
+
+Enabled customer webhook deliveries include the `x-ledig-environment` header:
+
+| Value | Environment |
+| --- | --- |
+| `sandbox` | Staging or development |
+| `live` | Production |
+
+Ledig sets this label from the sending environment. Retries retain the same label. Deliveries published before the header was introduced may lack it, including replays. It does not change the event body or the agreed signature-verification process.
+
+Use the label for display and diagnostics, not authentication or permission to process an event. The event signature does not authenticate this extra header. Continue verifying the signature with the secret configured for your approved environment. The `sandbox` label does not promise that every service or payment uses simulated data; follow your agreed testing scope.

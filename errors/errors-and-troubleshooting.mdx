@@ -27,10 +27,12 @@ Use the HTTP status and `code` for control flow; messages can change. Never disp
 | `401`         | `AUTH_FAILED`                                        | Check credential state, timestamp and the exact signed bytes.                                                    |
 | `403`         | `MISSING_SCOPE`, `SERVICE_NOT_INCLUDED`, `FORBIDDEN` | Check permission, enabled product and selected business.                                                         |
 | `404`         | `NOT_FOUND`                                          | Confirm the resource ID and business context.                                                                    |
+| `404`         | `RATE_NOT_FOUND`                                     | Check the currency pair and current conversion discovery; an executable price is unavailable.                    |
 | `409`         | `IDEMPOTENCY_CONFLICT`                               | Resolve a key/body mismatch or conflicting transfer quote/reference identities; do not invent a replacement key. |
 | `409`         | `INSUFFICIENT_BALANCE`                               | Confirm the total source debit, including fees, and available funds.                                             |
 | `409`         | `INSTANT_CONVERSION_LIMIT_EXCEEDED`                  | Read the returned safe allowance details and reconcile any earlier attempt.                                      |
 | `413` / `414` | Request body or URL too large                        | Reduce the request to the endpoint's limits.                                                                     |
+| `422`         | `RATE_ROUTE_AMOUNT_OUT_OF_RANGE`                    | Adjust the source amount to the returned conversion bounds.                                                      |
 | `422`         | Payout transaction or monthly limit exceeded         | Review current business limits. Repeating unchanged input does not bypass the cap.                               |
 | `423`         | `COMPLIANCE_REVIEW_REQUIRED`                         | The operation needs review; do not create replacement payments to bypass it.                                     |
 | `429`         | `RATE_LIMITED`                                       | Honour `Retry-After` when supplied and reduce request rate.                                                      |
@@ -38,6 +40,61 @@ Use the HTTP status and `code` for control flow; messages can change. Never disp
 | `501`         | `NOT_IMPLEMENTED`                                    | The requested operation is not available.                                                                        |
 
 Codes are additive. Handle unknown codes as errors using their HTTP status. Individual endpoints document additional codes and limits.
+
+## Field validation
+
+A malformed request returns `400 BAD_REQUEST`. When a known field is missing or invalid, the message names its path. For example, omitting the transfer's `quoteId` returns:
+
+```json
+{
+  "status": "error",
+  "message": "quoteId is required.",
+  "code": "BAD_REQUEST"
+}
+```
+
+For a quote with an external payout, a missing recipient can return `payOut.recipientId is required.`. Correct that field and validate the rest of the request. These field-validation messages do not echo submitted values, and some validation failures use a general message. Do not parse message text as a stable error code.
+
+## Quote error examples
+
+These illustrative responses show different failures; their amounts are examples, not your configured limits.
+
+An unavailable executable price returns `404`:
+
+```json
+{
+  "status": "error",
+  "message": "A price is currently unavailable for this pair. Try again later.",
+  "code": "RATE_NOT_FOUND"
+}
+```
+
+A conversion amount outside the direction's range returns `422`:
+
+```json
+{
+  "status": "error",
+  "message": "The amount you convert must be between 10 and 50000 USDT for this conversion direction.",
+  "code": "RATE_ROUTE_AMOUNT_OUT_OF_RANGE",
+  "details": {
+    "sourceCurrency": "USDT",
+    "minimumAmount": "10",
+    "maximumAmount": "50000"
+  }
+}
+```
+
+Insufficient available funds returns `409`:
+
+```json
+{
+  "status": "error",
+  "message": "Available balance is not sufficient for this action.",
+  "code": "INSUFFICIENT_BALANCE"
+}
+```
+
+Conversion bounds use the source amount. Payout method or network bounds use the destination amount. Account allowance errors use USD-equivalent amounts. Read [Limits](/guides/limits) to display the correct explanation and units.
 
 ## Retries
 
@@ -47,7 +104,7 @@ Follow [operation-specific retry rules](/guides/idempotency): retain the origina
 
 ## Request IDs and safe diagnostics
 
-Retain the `x-request-id` returned by Ledig. A client-supplied request ID must use 8–128 characters from letters, digits, `.`, `_`, `:`, or `-`. A valid value is preserved.
+Ledig returns `x-request-id` on successful responses and errors, including authentication rejections. Retain it when reporting an issue. A client-supplied request ID must use 8–128 characters from letters, digits, `.`, `_`, `:`, or `-`. A valid value is preserved; an omitted or invalid value is replaced with a generated ID. The ID helps correlate a request; it does not authenticate it.
 
 Record the request ID, time, environment label, HTTP method, path template, status and error code. For example, record `/v1/transfers/{id}` rather than a complete URL with sensitive query values.
 

@@ -11,6 +11,8 @@ A quote records the rate, amounts, fees and expiry for a conversion or payment. 
 
 Send decimal strings at the source currency's precision. Do not round excess fractional digits silently or assume every currency uses two decimals. The server calculates the destination amount and validates its precision too.
 
+Use `GET /v1/liquidity/routes` to discover each conversion direction's minimum and maximum source amount. Payout method or network limits use the destination amount, and account allowances use USD equivalent. See [Limits](/guides/limits) before presenting a single maximum to a customer.
+
 ## Discover payment methods and fees
 
 These reads answer different questions:
@@ -34,7 +36,7 @@ The fee estimator is a non-mutating POST available with `quotes:read`, including
 
 Show pricing availability and payout availability separately. A priced band may remain visible while sending is unavailable, and an out-of-range amount can return `amountWithinLimits: false`. Missing or ambiguous pricing must not become a zero fee. Fetch a quote to confirm executable terms; do not cache these private responses or calculate the authoritative fee in your client.
 
-For crypto payouts, `maximumAmount: null` with `minimumAmount: "0"` means there is no configured payout-route amount maximum. Treat `null` as an absent cap when displaying or filtering limits. Fiat payouts retain a bounded maximum. Continue to check payout availability and obtain a quote before sending.
+For crypto payouts, `maximumAmount: null` with `minimumAmount: "0"` means there is no configured payout-route amount maximum. Treat `null` as an absent route cap when displaying or filtering limits; account allowances still apply. Fiat payouts retain a bounded maximum. Keep separate supported bands separate, including any gaps between them. Continue to check payout availability and obtain a quote before sending.
 
 ## Create the quote
 
@@ -110,3 +112,14 @@ Do not send `recipientId` or `chain`, and do not create a saved recipient for th
 A quote is consumed once. If an unused quote expires, obtain new terms. If transfer creation might already have succeeded, reconcile or replay that transfer using its original identifiers before creating a replacement quote. A retained transfer can still be recovered after its original quote expires; see [transfer retries](/guides/transfers#retries).
 
 `payIn.type: temporary_bank_account` is reserved and returns `501 NOT_IMPLEMENTED`. Deposit-method discovery does not enable deposit quote execution.
+
+## Handle quote failures
+
+| Status and code | Meaning and next step |
+| --- | --- |
+| `404 RATE_NOT_FOUND` | An executable price or conversion direction is unavailable. Check the pair and current discovery results. |
+| `422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE` | `sourceAmount` is outside this conversion direction's bounds. Read `details.sourceCurrency`, `minimumAmount` and `maximumAmount`. |
+| `409 INSUFFICIENT_BALANCE` | Available funds do not cover the required debit. Include fees when checking the balance. |
+| `422 RATE_EXPIRED`, `RATE_STALE`, `RATE_NOT_YET_VALID` | Executable pricing is not current. Obtain fresh terms when pricing becomes available. |
+
+These are distinct failures. An unavailable price is not a zero rate, and a limit failure does not mean funds were deducted. For a timeout or an uncertain write outcome, follow the [retry rules](/guides/idempotency) before starting another attempt. See [example error responses](/errors/errors-and-troubleshooting#quote-error-examples).
