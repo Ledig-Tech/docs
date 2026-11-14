@@ -53,7 +53,7 @@ These paths follow `/v1/managed-businesses/{businessId}/onboarding`:
 | `GET /sections` | Read sections, saved answers and the current `updatedAt` value. |
 | `GET /{section}` | Read one section. |
 | `GET /{section}/options` | Get form choices and required documents. |
-| `PUT /{section}` | Save answers in the endpoint's `{ "data": ... }` shape. |
+| `PUT /{section}` | Replace the section's saved answers in the endpoint's `{ "data": ... }` shape. |
 | `POST /{section}/complete` | Validate a section and mark it complete. |
 | `POST /owners` | Add an owner or related person. |
 | `DELETE /owners/{ownerId}` | Remove a related person. |
@@ -61,6 +61,8 @@ These paths follow `/v1/managed-businesses/{businessId}/onboarding`:
 | `POST /owners/{ownerId}/verification` | Start or resume a required owner's identity verification after submission. |
 
 Share each identity-verification session only with the person who must complete it. That person should complete their own identity and liveness checks.
+
+When editing a section, first read its current answers. Send all answers you want to keep together with your changes: `PUT /{section}` replaces the saved section, so omitted answers are removed. Saving a draft does not mark the section complete or submit the application.
 
 ## Avoid overwriting another person's edits
 
@@ -84,6 +86,8 @@ Use the document requirements returned by the section's options endpoint. Each u
 3. **Confirm the upload.** Call `POST .../onboarding/documents/{documentId}/complete` with the `ETag` from registration in `If-Match`. Save the returned document result and use the new `ETag` for your next edit.
 
 PDF, JPEG and PNG files are supported, up to 50 MiB each. Check the returned `maxSizeBytes` and `allowedMimeTypes` before uploading.
+
+Use the filename, MIME type, byte count and checksum of the exact file you will upload. Do not reuse the fictional file metadata from an example for a different file.
 
 If the file is damaged, unreadable or does not meet the upload requirements, use the returned correction message and replace it. If validation is temporarily unavailable, retry completion for the same document instead of uploading another copy.
 

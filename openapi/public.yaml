@@ -914,7 +914,7 @@ paths:
         content: |-
           **Required scope:** `merchants:write`
 
-          Use your institution's credentials and keep your institution selected in the business headers. The businessId in the path identifies the business whose application you manage. Your institution must have managed-business access and an active relationship with that business. You can complete its application before that business is approved. Send the section's answers in data. Before making changes, read the section list and send its exact updatedAt value, in quotes, as If-Match. Use the returned ETag for your next change. A missing or outdated required revision returns 409; fetch the latest application before trying again. Saving answers does not submit the application for review.
+          Use your institution's credentials and keep your institution selected in the business headers. The businessId in the path identifies the business whose application you manage. Your institution must have managed-business access and an active relationship with that business. You can complete its application before that business is approved. Send the section's complete saved answers in data. This replaces the section's existing answers; omitted answers are removed. Read the current section first and include the answers you want to keep along with your changes. Before making changes, read the section list and send its exact updatedAt value, in quotes, as If-Match. Use the returned ETag for your next change. A missing or outdated required revision returns 409; fetch the latest application before trying again. The legalName-only JSON example illustrates a new company draft, not a completed section. Saving answers does not complete the section or submit the application for review.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -934,11 +934,12 @@ paths:
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/${encodeURIComponent(section)}`;
             const pathWithQuery = path;
-            const body = {
-              "data": {
-                "legalName": "Example Supplies Ltd"
-              }
-            };
+            // First read the current section answers. Saving replaces this section's data.
+            // Include unchanged fields as well as your edits in the complete JSON object.
+            const sectionData = JSON.parse(required("LEDIG_ONBOARDING_SECTION_DATA_JSON"));
+            if (sectionData === null || typeof sectionData !== "object" || Array.isArray(sectionData))
+              throw new Error("Section data must be a complete JSON object.");
+            const body = { data: sectionData };
             const rawBody = JSON.stringify(body);
             const headers = { "Accept": "application/json" };
             headers["Content-Type"] = "application/json";
@@ -1249,6 +1250,12 @@ paths:
               firstName: Alex
               lastName: Example
               email: alex@example.com
+              roles:
+                - beneficial_owner
+              nationality: country_nationality_example_001
+              residenceCountry: country_residence_example_001
+              resStreet: 10 Example Road
+              resCity: Example City
               ownershipPercentage: "100"
       responses:
         "201":
@@ -1322,11 +1329,19 @@ paths:
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/owners`;
             const pathWithQuery = path;
+            // Use this owner's real details and country IDs from the ownership options.
             const body = {
               "type": "individual",
               "firstName": "Alex",
               "lastName": "Example",
               "email": "alex@example.com",
+              "roles": [
+                "beneficial_owner"
+              ],
+              "nationality": required("LEDIG_OWNER_NATIONALITY_ID"),
+              "residenceCountry": required("LEDIG_OWNER_RESIDENCE_COUNTRY_ID"),
+              "resStreet": "10 Example Road",
+              "resCity": "Example City",
               "ownershipPercentage": "100"
             };
             const rawBody = JSON.stringify(body);
@@ -1744,13 +1759,25 @@ paths:
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/documents`;
             const pathWithQuery = path;
+            // Use metadata from the exact file you will upload to the returned URL.
+            const documentFileName = required("LEDIG_DOCUMENT_FILE_NAME");
+            const documentMimeType = required("LEDIG_DOCUMENT_MIME_TYPE");
+            const documentChecksum = required("LEDIG_DOCUMENT_SHA256");
+            const documentSizeBytes = Number(required("LEDIG_DOCUMENT_SIZE_BYTES"));
+            if (!documentFileName.trim()) throw new Error("Set the file name for this document.");
+            if (!["application/pdf", "image/jpeg", "image/png"].includes(documentMimeType))
+              throw new Error("Use the MIME type of your PDF, JPEG or PNG file.");
+            if (!/^[a-f0-9]{64}$/.test(documentChecksum))
+              throw new Error("Use the lowercase SHA-256 checksum of this exact file.");
+            if (!Number.isSafeInteger(documentSizeBytes) || documentSizeBytes < 1 || documentSizeBytes > 52428800)
+              throw new Error("File size must be a positive integer no greater than 52428800 bytes.");
             const body = {
-              "requirementType": "incorporation_or_registration_evidence",
-              "documentKind": "certificate_of_incorporation",
-              "originalFileName": "company-registration.pdf",
-              "mimeType": "application/pdf",
-              "checksumSha256": required("LEDIG_DOCUMENT_SHA256"),
-              "sizeBytes": 24000
+              requirementType: "incorporation_or_registration_evidence",
+              documentKind: "certificate_of_incorporation",
+              originalFileName: documentFileName,
+              mimeType: documentMimeType,
+              checksumSha256: documentChecksum,
+              sizeBytes: documentSizeBytes,
             };
             const rawBody = JSON.stringify(body);
             const headers = { "Accept": "application/json" };
@@ -3616,6 +3643,8 @@ paths:
                   value: ethereum
                 - name: address
                   value: "0x1111111111111111111111111111111111111111"
+                - name: accountName
+                  value: Example Treasury
       responses:
         "200":
           description: Recipient created.
@@ -3639,6 +3668,7 @@ paths:
                   fields:
                     network: ethereum
                     address: "0x1111111111111111111111111111111111111111"
+                    accountName: Example Treasury
                   destinationScope:
                     network: ethereum
                     assets:
@@ -3652,6 +3682,12 @@ paths:
                     - name: address
                       displayName: Wallet address
                       value: "0x1111111111111111111111111111111111111111"
+                      required: true
+                      visible: true
+                      copyable: true
+                    - name: accountName
+                      displayName: Account Name
+                      value: Example Treasury
                       required: true
                       visible: true
                       copyable: true
@@ -3702,6 +3738,10 @@ paths:
                 {
                   "name": "address",
                   "value": required("LEDIG_RECIPIENT_ADDRESS")
+                },
+                {
+                  "name": "accountName",
+                  "value": required("LEDIG_RECIPIENT_ACCOUNT_NAME")
                 }
               ]
             };
@@ -3763,6 +3803,7 @@ paths:
                     fields:
                       network: ethereum
                       address: "0x1111111111111111111111111111111111111111"
+                      accountName: Example Treasury
                     destinationScope:
                       network: ethereum
                       assets:
@@ -3776,6 +3817,12 @@ paths:
                       - name: address
                         displayName: Wallet address
                         value: "0x1111111111111111111111111111111111111111"
+                        required: true
+                        visible: true
+                        copyable: true
+                      - name: accountName
+                        displayName: Account Name
+                        value: Example Treasury
                         required: true
                         visible: true
                         copyable: true
@@ -3861,6 +3908,7 @@ paths:
                   fields:
                     network: ethereum
                     address: "0x1111111111111111111111111111111111111111"
+                    accountName: Example Treasury
                   destinationScope:
                     network: ethereum
                     assets:
@@ -3874,6 +3922,12 @@ paths:
                     - name: address
                       displayName: Wallet address
                       value: "0x1111111111111111111111111111111111111111"
+                      required: true
+                      visible: true
+                      copyable: true
+                    - name: accountName
+                      displayName: Account Name
+                      value: Example Treasury
                       required: true
                       visible: true
                       copyable: true
@@ -3958,6 +4012,7 @@ paths:
                   fields:
                     network: ethereum
                     address: "0x1111111111111111111111111111111111111111"
+                    accountName: Example Treasury
                   destinationScope:
                     network: ethereum
                     assets:
@@ -3971,6 +4026,12 @@ paths:
                     - name: address
                       displayName: Wallet address
                       value: "0x1111111111111111111111111111111111111111"
+                      required: true
+                      visible: true
+                      copyable: true
+                    - name: accountName
+                      displayName: Account Name
+                      value: Example Treasury
                       required: true
                       visible: true
                       copyable: true
