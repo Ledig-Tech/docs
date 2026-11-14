@@ -789,15 +789,12 @@ paths:
                         required:
                           - applicationId
                           - relatedPartyId
-                          - providerApplicantId
                           - accessToken
                           - expiresInSeconds
                         properties:
                           applicationId:
                             type: string
                           relatedPartyId:
-                            type: string
-                          providerApplicantId:
                             type: string
                           accessToken:
                             type: string
@@ -1203,7 +1200,7 @@ paths:
         content: |-
           **Required scope:** `view_rates`
 
-          Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. This route preserves the existing field names, including the trailing space in `Last Updated `.
+          Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. Internal rate update timestamps are not published.
   /v1/balances:
     get:
       tags:
@@ -2733,7 +2730,7 @@ components:
           type:
             - string
             - "null"
-          description: Existing customer correction instructions only while status is changes_requested. Other decision reasons are not published.
+          description: Compatibility alias of explicit customerMessage while changes are requested. Never contains private or historical staff review reasons.
         approvedAt:
           type:
             - string
@@ -2787,6 +2784,11 @@ components:
                       - changes_requested
                   required:
                     type: boolean
+        customerMessage:
+          type:
+            - string
+            - "null"
+          description: Explicit applicant correction instructions, separate from private staff reasons. Historical staff text is never published.
     ClientOnboardingSectionSummary:
       type: object
       additionalProperties: false
@@ -2916,8 +2918,6 @@ components:
         - requirementType
         - originalFileName
         - mimeType
-        - checksumSha256
-        - source
         - status
         - createdAt
         - updatedAt
@@ -2938,16 +2938,8 @@ components:
           type: string
         mimeType:
           type: string
-        checksumSha256:
-          type: string
         sizeBytes:
           type: integer
-        source:
-          type: string
-          enum:
-            - admin_upload
-            - business_upload
-            - manual_migration
         status:
           type: string
           enum:
@@ -2970,42 +2962,16 @@ components:
           additionalProperties: false
           required:
             - status
-            - version
-            - checksumSha256
-            - mimeType
-            - validatedAt
           properties:
             status:
               type: string
               const: valid
-            version:
-              type: string
-            checksumSha256:
-              type: string
-            mimeType:
-              type: string
-            validatedAt:
-              type: string
-            pageCount:
-              type: integer
         validationFailure:
           type: object
           additionalProperties: false
           required:
-            - version
-            - checksumSha256
-            - mimeType
-            - failedAt
             - reasonCode
           properties:
-            version:
-              type: string
-            checksumSha256:
-              type: string
-            mimeType:
-              type: string
-            failedAt:
-              type: string
             reasonCode:
               type: string
               enum:
@@ -3343,7 +3309,6 @@ components:
         - Quote Currency
         - Bid
         - Ask
-        - "Last Updated "
       properties:
         Base Currency:
           type: string
@@ -3353,8 +3318,6 @@ components:
           type: number
         Ask:
           type: number
-        "Last Updated ":
-          type: string
     ClientBalance:
       type: object
       additionalProperties: false
@@ -3591,7 +3554,7 @@ components:
     ClientRecipient:
       type: object
       additionalProperties: false
-      description: Saved customer destination, display metadata and approval state. Review versions remain available for existing clients; internal hashes and review evidence are excluded.
+      description: Saved customer destination and public eligibility. Internal hashes, blacklist flags, review counters and staff evidence are not returned.
       required:
         - id
         - profileId
@@ -3599,7 +3562,6 @@ components:
         - fields
         - is3rdParty
         - oneTime
-        - blacklisted
         - deletedAt
         - active
         - object
@@ -3607,8 +3569,7 @@ components:
         - createdAt
         - updatedAt
         - reviewStatus
-        - destinationVersion
-        - reviewedVersion
+        - usableForPayout
       properties:
         id:
           type: string
@@ -3668,15 +3629,9 @@ components:
           enum:
             - directory
             - manual
-        payoutExecutionRestriction:
-          type: string
-          enum:
-            - ledig_only
         is3rdParty:
           type: boolean
         oneTime:
-          type: boolean
-        blacklisted:
           type: boolean
         active:
           type: boolean
@@ -3719,14 +3674,9 @@ components:
             - approved
             - rejected
             - revoked
-        destinationVersion:
-          type: integer
-          minimum: 1
-        reviewedVersion:
-          type:
-            - integer
-            - "null"
-          minimum: 1
+        usableForPayout:
+          type: boolean
+          description: Stored destination eligibility for selection. Execution still rechecks authoritative Ledger and Compliance controls.
     CursorPage:
       allOf:
         - $ref: "#/components/schemas/Success"
@@ -4408,8 +4358,6 @@ components:
         - state
         - message
         - requiredAction
-        - lastAttemptAt
-        - lastCheckedAt
         - canReplace
       description: Customer delivery facts without provider references, retry history or private failure evidence.
       properties:
@@ -4439,14 +4387,6 @@ components:
             - staff_review
             - check_delivery
             - retry_delivery
-        lastAttemptAt:
-          type:
-            - string
-            - "null"
-        lastCheckedAt:
-          type:
-            - string
-            - "null"
         canReplace:
           type: boolean
     ClientOnboardingSectionData:
