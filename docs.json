@@ -1,8 +1,8 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Ledig",
-  "description": "Developer documentation for Ledig's liquidity, settlement and wallet APIs.",
+  "name": "Ledig Payments",
+  "description": "Receive funds, manage balances, convert currencies and send payments with Ledig's payments API.",
   "colors": {
     "primary": "#4361EE",
     "light": "#4361EE",
@@ -187,7 +187,7 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:admin@ledig.io"
+        "href": "mailto:support@ledig.io"
       },
       {
         "label": "Website",
@@ -254,6 +254,9 @@
     }
   ],
   "api": {
+    "examples": {
+      "autogenerate": false
+    },
     "playground": {
       "display": "simple",
       "proxy": false

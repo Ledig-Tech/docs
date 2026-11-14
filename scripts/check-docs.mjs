@@ -16,27 +16,83 @@ const TOOL_OUTPUTS = new Set([".git", "node_modules", ".mintlify"]);
 const TEXT_EXTENSIONS = new Set([".md", ".mdx", ".json", ".yaml", ".yml", ".mjs", ".js", ".ts", ".svg", ".txt", ".xml", ".toml", ".sh", ".css", ".html"]);
 const TEXT_NAMES = new Set(["LICENSE", ".mintignore", ".gitignore", ".gitleaksignore"]);
 const FORBIDDEN = [
-  { pattern: /sandbox\.ledig\.io/i, rule: "retired-environment-host" },
-  { pattern: /(^|[^-\w])api\.ledig\.io/i, rule: "unconfirmed-production-host" },
   { pattern: /\/internal\//i, rule: "internal-route" },
+  { pattern: /\/(?:v\d+\/)?(?:admin|staff)\//i, rule: "internal-route" },
   { pattern: /github\.com\/Ledig-Tech\/ledig-platform(?:[\s/#?)"]|$)/i, rule: "private-source-link" },
   { pattern: /\binstant\x5fconversion\b/i, rule: "retired-operation" },
   { pattern: /Mint\x20Starter\x20Kit|plant\x20store/i, rule: "starter-content" },
   { pattern: /hi@mintlify\.com|dashboard\.mintlify\.com|mintlify\.com\/blog/i, rule: "starter-link" },
-  { pattern: /ledig_(?:sk|pk)_[A-Za-z0-9]{8,}|sk_live_[A-Za-z0-9]{8,}/, rule: "credential-pattern" },
+  { pattern: /ledig_(?:sk|pk)_[A-Za-z0-9]{8,}|sk_live_[A-Za-z0-9]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}/, rule: "credential-pattern" },
+  { pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/, rule: "credential-pattern" },
   { pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, rule: "private-key" },
   { pattern: /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/i, rule: "database-connection" },
 ];
+
+// Only these reviewed maintainer files may discuss the publishing policy and
+// its negative test cases. New files, drafts and unlinked pages are scanned as
+// customer content. This exception never skips the repository security scan.
+const MAINTAINER_FILES = new Set([
+  "AGENTS.md", "README.md", "CONTRIBUTING.md", "LICENSE", ".mintignore", ".gitignore", ".gitleaksignore",
+  "package.json", "package-lock.json", "openapi/source.json", ".github/workflows/docs-check.yml",
+  "scripts/check-docs.mjs", "scripts/tests/check-docs.test.mjs",
+]);
+const CUSTOMER_FORBIDDEN = [
+  { pattern: /\b(?:api-staging|staging|api-dev|internal|dev)\.ledig\.io\b/i, rule: "internal-environment-host" },
+  { pattern: /\badmin@ledig\.io\b/i, rule: "internal-support-address" },
+  { pattern: /\b(?:Flutterwave|OneMoney|1Money|Nomba|Currenc|Blockradar|Chainalysis|Sumsub|Alchemy|Postmark|Coinbase)\b/i, rule: "provider-implementation-detail" },
+  { pattern: /\b(?:engineering staging|effective financial profile|runtime serializers?|composition root|source revision|deployment workflow|publication allowlist|cutover|staging deployment|released customer (?:API )?contract|durable receiving request)\b/i, rule: "internal-engineering-language" },
+  { pattern: /(?:<|&lt;)(?:string|number|integer|boolean|object|array)(?:>|&gt;)/i, rule: "generic-example-placeholder" },
+  { pattern: /x-ledig-(?:signature|timestamp)[^\n]*?(?:<api-key>|YOUR_API_KEY)/i, rule: "incorrect-auth-example" },
+];
+const GENERIC_EXAMPLE = /^(?:<?(?:string|number|integer|boolean|object|array)>?|<api-key>)$/i;
+const INTERNAL_EXAMPLE_FIELDS = new Set(["destinationFingerprint", "uniqueHash", "delegatedRequestAuditId", "providerReference", "providerFee", "ledgerLine"]);
+const APPROVED_SERVERS = ["https://sandbox.ledig.io", "https://api.ledig.io"];
 
 function finding(file, rule, line = 1) {
   return { file, line, rule };
 }
 
-export function scanText(file, text) {
-  return FORBIDDEN.flatMap(({ pattern, rule }) => {
+function scanPatterns(file, text, patterns) {
+  return patterns.flatMap(({ pattern, rule }) => {
     const match = pattern.exec(text);
     return match ? [finding(file, rule, text.slice(0, match.index).split("\n").length)] : [];
   });
+}
+
+export function scanText(file, text) {
+  const patterns = MAINTAINER_FILES.has(file) ? FORBIDDEN : [...FORBIDDEN, ...CUSTOMER_FORBIDDEN];
+  return scanPatterns(file, text, patterns);
+}
+
+// YAML/JSON escape sequences are decoded before this pass. A forbidden host
+// or credential must not become publishable by encoding a character in it.
+function scanStructured(file, value, visitExample, seen = new Set()) {
+  if (typeof value === "string") return scanText(file, value);
+  if (!value || typeof value !== "object" || seen.has(value)) return [];
+  seen.add(value);
+  const findings = [];
+  for (const [key, child] of Object.entries(value)) {
+    findings.push(...scanText(file, key));
+    if (key === "example") visitExample(child, value);
+    if (key === "examples") {
+      if (Array.isArray(child)) child.forEach((example) => visitExample(example, value));
+      else if (child && typeof child === "object") {
+        for (const example of Object.values(child)) if (example && Object.hasOwn(example, "value")) visitExample(example.value, value);
+      }
+    }
+    findings.push(...scanStructured(file, child, visitExample, seen));
+  }
+  return findings;
+}
+
+function checkExampleValues(value, add, file = SPEC_PATH, seen = new Set()) {
+  if (typeof value === "string" && GENERIC_EXAMPLE.test(value)) add(file, "generic-example-placeholder");
+  if (!value || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  for (const [key, child] of Object.entries(value)) {
+    if (INTERNAL_EXAMPLE_FIELDS.has(key)) add(file, "internal-example-field");
+    checkExampleValues(child, add, file, seen);
+  }
 }
 
 function publicationFiles(root) {
@@ -92,6 +148,77 @@ function collectNavigation(node, result) {
     if (Array.isArray(node[key])) collectNavigation(node[key], result);
 }
 
+function dereference(document, node, seen = new Set()) {
+  if (!node || typeof node !== "object" || !node.$ref) return node;
+  if (seen.has(node.$ref)) return undefined;
+  seen.add(node.$ref);
+  return dereference(document, jsonPointer(document, node.$ref), seen);
+}
+
+function mediaExamples(document, media) {
+  if (Object.hasOwn(media, "example")) return [media.example];
+  return Object.values(media.examples ?? {}).flatMap((entry) => {
+    const example = dereference(document, entry);
+    return example && Object.hasOwn(example, "value") ? [example.value] : [];
+  });
+}
+
+// This checks the JSON Schema constraints used by our generated examples. The
+// owning generator also tests compatibility; examples cannot change a schema
+// or add fields simply to make the rendered documentation look more complete.
+function matchesSchema(document, schema, value, depth = 0) {
+  if (schema === false || depth > 100 || value === undefined) return false;
+  if (schema === true || schema === undefined) return true;
+  if (!schema || typeof schema !== "object") return false;
+  const matches = (part, item = value) => matchesSchema(document, part, item, depth + 1);
+  if (schema.$ref && !matches(jsonPointer(document, schema.$ref) ?? false)) return false;
+  if (schema.allOf && !schema.allOf.every((part) => matches(part))) return false;
+  if (schema.anyOf && !schema.anyOf.some((part) => matches(part))) return false;
+  if (schema.oneOf && schema.oneOf.filter((part) => matches(part)).length !== 1) return false;
+  if (schema.not && matches(schema.not)) return false;
+  if (schema.if && !matches(matches(schema.if) ? schema.then : schema.else)) return false;
+  if (Object.hasOwn(schema, "const") && JSON.stringify(schema.const) !== JSON.stringify(value)) return false;
+  if (schema.enum && !schema.enum.some((item) => JSON.stringify(item) === JSON.stringify(value))) return false;
+  const types = typeof schema.type === "string" ? [schema.type] : schema.type;
+  const typeMatches = (type) => type === "null" ? value === null
+    : type === "array" ? Array.isArray(value)
+      : type === "object" ? value !== null && typeof value === "object" && !Array.isArray(value)
+        : type === "integer" ? Number.isSafeInteger(value)
+          : type === "number" ? typeof value === "number" && Number.isFinite(value)
+            : typeof value === type;
+  if (types && !types.some(typeMatches) && !(schema.nullable && value === null)) return false;
+  if (typeof value === "string") {
+    if (value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? Infinity)) return false;
+    if (schema.pattern) {
+      try { if (!new RegExp(schema.pattern).test(value)) return false; } catch { return false; }
+    }
+    if (schema.format === "uuid" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return false;
+    if (schema.format === "date-time" && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || Number.isNaN(Date.parse(value)))) return false;
+    if (schema.format === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)))) return false;
+    if (schema.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
+    if (schema.format === "uri") { try { new URL(value); } catch { return false; } }
+  }
+  if (typeof value === "number") {
+    if (value < (schema.minimum ?? -Infinity) || value > (schema.maximum ?? Infinity)) return false;
+    if (typeof schema.exclusiveMinimum === "number" && value <= schema.exclusiveMinimum) return false;
+    if (typeof schema.exclusiveMaximum === "number" && value >= schema.exclusiveMaximum) return false;
+    if (schema.multipleOf && Math.abs(value / schema.multipleOf - Math.round(value / schema.multipleOf)) > 1e-9) return false;
+  }
+  if (Array.isArray(value)) {
+    if (value.length < (schema.minItems ?? 0) || value.length > (schema.maxItems ?? Infinity)) return false;
+    if (schema.uniqueItems && new Set(value.map((item) => JSON.stringify(item))).size !== value.length) return false;
+    if (schema.items && !value.every((item) => matches(schema.items, item))) return false;
+  } else if (value !== null && typeof value === "object") {
+    if ((schema.required ?? []).some((key) => !Object.hasOwn(value, key))) return false;
+    for (const [key, child] of Object.entries(value)) {
+      if (Object.hasOwn(schema.properties ?? {}, key)) { if (!matches(schema.properties[key], child)) return false; }
+      else if (schema.additionalProperties === false) return false;
+      else if (schema.additionalProperties && !matches(schema.additionalProperties, child)) return false;
+    }
+  }
+  return true;
+}
+
 export async function checkRepository(root, { fixture = false } = {}) {
   const errors = [];
   const contents = new Map();
@@ -99,7 +226,7 @@ export async function checkRepository(root, { fixture = false } = {}) {
   const add = (file, rule, line = 1) => errors.push(finding(file, rule, line));
   for (const file of files) {
     if (!safeLocalPath(file)) { add("repository", "unsafe-file-path"); continue; }
-    if (scanText("repository", file).length) { add("repository", "sensitive-file-name"); continue; }
+    if (scanPatterns("repository", file, [...FORBIDDEN, ...CUSTOMER_FORBIDDEN]).length) { add("repository", "sensitive-file-name"); continue; }
     if (TOOL_OUTPUTS.has(file.split("/")[0])) { add(file, "committed-tool-output"); continue; }
     const path = join(root, file);
     let info;
@@ -122,12 +249,22 @@ export async function checkRepository(root, { fixture = false } = {}) {
     if (/\.ya?ml$/.test(file)) {
       try {
         const parsed = parse(text, { maxAliasCount: 1000 });
+        errors.push(...scanStructured(file, parsed, (example, owner) => {
+          checkExampleValues(example, add, file);
+          const schema = owner.schema ?? ((owner.type || owner.properties || owner.$ref || owner.allOf || owner.anyOf || owner.oneOf) ? owner : undefined);
+          if (file === SPEC_PATH && schema && !matchesSchema(parsed, schema, example)) add(file, "example-schema-mismatch");
+        }));
         if (file !== SPEC_PATH && parsed && typeof parsed === "object" && (Object.hasOwn(parsed, "openapi") || Object.hasOwn(parsed, "swagger"))) add(file, "extra-api-specification");
       } catch { add(file, "invalid-yaml"); }
     }
     if (file.endsWith(".json")) {
       try {
         const parsed = JSON.parse(text);
+        errors.push(...scanStructured(file, parsed, (example, owner) => {
+          checkExampleValues(example, add, file);
+          const schema = owner.schema ?? ((owner.type || owner.properties || owner.$ref || owner.allOf || owner.anyOf || owner.oneOf) ? owner : undefined);
+          if (file === SPEC_PATH && schema && !matchesSchema(parsed, schema, example)) add(file, "example-schema-mismatch");
+        }));
         if (parsed && typeof parsed === "object" && (Object.hasOwn(parsed, "openapi") || Object.hasOwn(parsed, "swagger"))) add(file, "extra-api-specification");
       } catch { add(file, "invalid-json"); }
     }
@@ -142,6 +279,7 @@ export async function checkRepository(root, { fixture = false } = {}) {
   collectNavigation(docs?.navigation, navigation);
   if (navigation.specs.length !== 1 || navigation.specs[0] !== SPEC_PATH) add("docs.json", "single-public-specification-required");
   if (!["simple", "none"].includes(docs?.api?.playground?.display)) add("docs.json", "interactive-playground-must-remain-disabled");
+  if (docs?.api?.examples?.autogenerate !== false) add("docs.json", "automatic-request-examples-must-remain-disabled");
   const pageExists = (page) => safeLocalPath(page) && [page + ".mdx", page + "/index.mdx"].some((path) => contents.has(path));
   for (const page of navigation.pages) if (!pageExists(page)) add("docs.json", "navigation-page-missing");
   for (const redirect of docs?.redirects ?? []) {
@@ -151,6 +289,8 @@ export async function checkRepository(root, { fixture = false } = {}) {
   const operations = [];
   if (!spec || spec.openapi !== "3.1.0" || !spec.paths || typeof spec.paths !== "object") add(SPEC_PATH, "invalid-openapi-document");
   else {
+    if (JSON.stringify((spec.servers ?? []).map((server) => server.url)) !== JSON.stringify(APPROVED_SERVERS)) add(SPEC_PATH, "approved-api-servers-required");
+    if (spec.info?.contact?.email !== "support@ledig.io") add(SPEC_PATH, "customer-support-contact-required");
     const securitySchemes = spec.components?.securitySchemes ?? {};
     const checkSecurity = (requirements) => {
       if (!Array.isArray(requirements)) { add(SPEC_PATH, "invalid-security-requirement"); return; }
@@ -164,7 +304,27 @@ export async function checkRepository(root, { fixture = false } = {}) {
         if (!METHODS.has(method)) continue;
         operations.push(method.toUpperCase() + " " + path);
         checkSecurity(operation.security ?? spec.security ?? []);
+        // Mintlify must display reviewed request examples for every operation,
+        // including unauthenticated health checks, rather than guess headers.
+        const samples = operation["x-codeSamples"];
+        if (!Array.isArray(samples) || samples.length === 0 || samples.some((sample) => !sample || typeof sample.lang !== "string" || !sample.lang.trim() || typeof sample.source !== "string" || !sample.source.trim())) add(SPEC_PATH, "reviewed-request-code-sample-required");
         if (!operation.responses || Object.keys(operation.responses).length === 0) add(SPEC_PATH, "operation-responses-missing");
+        const request = dereference(spec, operation.requestBody);
+        for (const media of Object.values(request?.content ?? {}))
+          for (const example of mediaExamples(spec, media))
+            if (!matchesSchema(spec, media.schema, example)) add(SPEC_PATH, "request-example-schema-mismatch");
+        for (const [status, response] of Object.entries(operation.responses ?? {})) {
+          const resolved = dereference(spec, response);
+          for (const [mediaType, media] of Object.entries(resolved?.content ?? {})) {
+            if (!/^application\/(?:[a-z0-9.+-]+\+)?json$/i.test(mediaType)) continue;
+            const examples = mediaExamples(spec, media);
+            if (/^2(?:\d\d|XX)$/i.test(status) && status !== "204" && examples.length === 0) add(SPEC_PATH, "success-response-example-required");
+            for (const example of examples) {
+              checkExampleValues(example, add);
+              if (!matchesSchema(spec, media.schema, example)) add(SPEC_PATH, "response-example-schema-mismatch");
+            }
+          }
+        }
       }
     }
     collectReferences(spec, (reference) => {
@@ -180,7 +340,7 @@ export async function checkRepository(root, { fixture = false } = {}) {
     if (contents.has(SPEC_PATH) && createHash("sha256").update(contents.get(SPEC_PATH)).digest("hex") !== provenance.sha256) add(SOURCE_PATH, "artifact-checksum-mismatch");
     if (provenance.operationCount !== operations.length) add(SOURCE_PATH, "artifact-operation-count-mismatch");
   }
-  return { errors, stats: { files: files.length, pages: new Set(navigation.pages).size, operations: operations.length, redirects: docs?.redirects?.length ?? 0 } };
+  return { errors: [...new Map(errors.map((error) => [formatFinding(error), error])).values()], stats: { files: files.length, pages: new Set(navigation.pages).size, operations: operations.length, redirects: docs?.redirects?.length ?? 0 } };
 }
 
 export function formatFinding(error) {

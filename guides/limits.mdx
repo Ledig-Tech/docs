@@ -1,56 +1,63 @@
 ---
 title: "Limits"
-description: "Distinguish conversion amounts, payout amounts and your account allowance."
+description: "Check how much you can convert or send before creating a payment."
 ---
 
-A payment can be subject to more than one limit. Passing a conversion limit does not mean its payout is available.
+A payment can have three different limits. Check each one against the right amount:
 
-| Limit | Amount to compare | Where to check |
+| Limit | Amount to check | Where to find it |
 | --- | --- | --- |
-| Conversion direction | `sourceAmount`, in the source currency | `GET /v1/liquidity/routes` |
-| Payout method or network | Amount sent to the recipient, in the destination currency | `GET /v1/payouts/catalogue` and payment options |
-| Account allowance | The payment's USD-equivalent value | Your dashboard account limits and returned allowance errors |
+| Conversion | Amount you convert, in the source currency. | `GET /v1/liquidity/routes` |
+| Payout method or network | Amount the recipient receives, in the destination currency. | `GET /v1/payouts/catalogue` and payment options |
+| Account | The payment's USD-equivalent value. | Your dashboard's account limits |
 
-For example, a USDT-to-NGN conversion can fit the USDT conversion range while its NGN payout exceeds the selected bank method's maximum. That does not mean every NGN payment has the same limit.
+For example, a conversion of **100 USDT to NGN** may fit the conversion limit while the NGN amount exceeds the selected bank payment method's limit. Other NGN methods can have different limits.
 
 ## Conversion limits
 
-Call `GET /v1/liquidity/routes` for the selected business. You can filter by `sourceCurrency`, `destinationCurrency`, or both. This read requires `view_rates` and access to quotes.
+Call `GET /v1/liquidity/routes` to see conversions available to your business. This request requires `view_rates` and access to quotes. You can filter by either currency or both:
 
 ```http
 GET /v1/liquidity/routes?sourceCurrency=USDT&destinationCurrency=NGN
 ```
 
-Each returned direction has `sourceCurrency`, `destinationCurrency`, `minAmount` and `maxAmount`. Compare these bounds with the amount you convert, before fees. The reverse direction has its own limits; do not invert the rate to infer them.
+Each result includes `sourceCurrency`, `destinationCurrency`, `minAmount` and `maxAmount`. Compare `sourceAmount` with those limits, **before fees**.
 
-Show `availability` and `status` alongside the bounds. Discovery does not reserve capacity or guarantee execution. Missing rows or failed reads do not mean unlimited conversion. Obtain a fresh [quote](/guides/quotes) before proceeding.
+Limits apply to one direction. For example, USDT-to-NGN and NGN-to-USDT may have different limits. Check `availability` and `status` as well as the amounts, then request a fresh [quote](/guides/quotes).
+
+If a conversion is missing or the request fails, do not assume it has no limit.
 
 ## Payout limits
 
-Use `GET /v1/payouts/catalogue` to display published bands by currency, method and, for crypto, network. Each band's `minimumAmount` and `maximumAmount` apply to the amount sent to the recipient in that currency.
+`GET /v1/payouts/catalogue` lists payment methods and amount bands by currency and, for crypto, network. `minimumAmount` and `maximumAmount` apply to what the recipient receives.
 
-Keep separate bands separate. For example, bands of 10–100 and 200–500 do not permit 150. Do not combine them into a displayed limit of 10–500.
+Keep separate bands separate. For example, **10–100** and **200–500** allow payments in either range, but not **150**.
 
-A returned `maximumAmount: null` means that band has no configured payout-route maximum. It does not remove account allowances or other eligibility checks. Missing data must not be displayed as unlimited.
+`maximumAmount: null` means that band has no set payout maximum. Account limits and other payment requirements still apply. Missing data is different from a returned `null` maximum.
 
-A catalogue band can remain visible while sending is unavailable. Check `payoutAvailability`, then request `GET /v1/quotes/payment-options` for the recipient, destination currency, amount and exact crypto network where applicable. Use the returned `paymentMethodIds` value in the quote.
+Check `payoutAvailability`, then request payment options for the recipient, destination currency, amount and crypto network where applicable. Use an ID from the returned `paymentMethodIds` in the quote.
 
-When you supply the selected `paymentMethodId` to payment options, the optional top-level `availability` can explain a rejection:
+When you include a selected `paymentMethodId` in the payment-options request, `availability.reason` may explain why it cannot be used:
 
-| `availability.reason` | Meaning |
+| Reason | Meaning |
 | --- | --- |
-| `payout_amount_out_of_range` | The amount is outside this method or network's bounds. Any returned minimum and maximum use the destination currency. |
-| `payout_amount_unavailable` | This amount is not in a supported band. Do not invent a continuous range. |
-| `network_unavailable` | The selected network is unavailable for this request. |
-| `recipient_incompatible` | The selected recipient does not match this payment option. |
-| `payout_unavailable` | The payout is unavailable; no more specific customer reason is provided. |
+| `payout_amount_out_of_range` | The amount is below or above this method's limits. Returned bounds use the destination currency. |
+| `payout_amount_unavailable` | The amount falls outside the supported bands. |
+| `network_unavailable` | The selected network is unavailable. |
+| `recipient_incompatible` | This recipient cannot use the selected payment option. |
+| `payout_unavailable` | Sending is unavailable for this request. |
 
-## Account allowances
+## Account limits
 
-Account allowances are separate from currency and method limits. Your dashboard shows the applicable per-payment maximum, monthly allowance and remaining monthly allowance in USD equivalent. An allowance does not establish that a route is available or that your balance covers the total debit.
+Your dashboard shows your maximum per payment, monthly allowance and remaining allowance in USD equivalent. These apply alongside conversion and payout limits.
 
-`PAYOUT_TRANSACTION_LIMIT_EXCEEDED` can include `requestedUsd` and `limitUsd` in `details`. `PAYOUT_MONTHLY_LIMIT_EXCEEDED` can include `requestedUsd`, `remainingUsd`, `resetsAt` and `timezone: "UTC"`. Use those returned facts when present; do not calculate an authoritative remaining allowance in your client or invent missing amounts.
+| Error | Details you can use |
+| --- | --- |
+| `PAYOUT_TRANSACTION_LIMIT_EXCEEDED` | `requestedUsd` and `limitUsd`, when returned. |
+| `PAYOUT_MONTHLY_LIMIT_EXCEEDED` | `requestedUsd`, `remainingUsd`, `resetsAt` and `timezone`, when returned. |
 
-Where `INSTANT_CONVERSION_LIMIT_EXCEEDED` is returned, its `sourceCurrency` identifies a separate conversion allowance. Its `period`, `requested`, `remaining`, `limit` and UTC reset details must not be presented as a USD payout allowance.
+Use the returned remaining allowance and reset time. Monthly reset times use UTC. Do not show a guessed remaining allowance when the response does not include one.
 
-See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for example responses. Quotes and execution recheck the current rules, even if an earlier discovery request succeeded.
+`INSTANT_CONVERSION_LIMIT_EXCEEDED` describes a separate conversion allowance in the returned `sourceCurrency`. Its `period`, `requested`, `remaining`, `limit` and UTC reset details should be shown in that currency, rather than as a USD payout limit.
+
+A quote or transfer checks the current limits again. You also need enough [available balance](/guides/balances) to cover the amount and fees. See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for sample error responses.

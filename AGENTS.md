@@ -1,97 +1,157 @@
-# AGENTS.md
+# Working on Ledig payments documentation
 
-Operating rules for everyone who edits this repository, human or AI.
+These instructions apply to every contributor and AI agent working in this repository. Read them before editing guides, API descriptions, examples, tests or site configuration.
 
-## What this repository is
+## Audience and purpose
 
-- Public developer documentation for Ledig, built with Mintlify.
-- Pages are MDX files with YAML frontmatter.
-- Configuration lives in `docs.json`.
-- Every file committed here is public. Write accordingly.
+This is public documentation for businesses and developers integrating with **Ledig's payments engine**. Help a customer receive funds, hold balances, convert currencies, send payments and follow their transactions.
 
-## Source of truth
+It is not a description of everything Ledig does, an engineering handbook, a release checklist or a record of internal implementation decisions.
 
-The backend owns the API contract, scopes, error codes, signing rules and behaviour. This repository explains the released customer contract; it does not define it.
+Ledig's onchain derivatives engine is a separate product for FX hedging. Briefly identify it in the introduction and link to its verified public documentation. Do not mix its smart-contract instructions or authentication with the payments API. Check the existing approved link; never invent a documentation URL.
 
-Before documenting an endpoint, scope or field, check the owning implementation and the deployed public contract. A source merge alone does not prove deployment or customer availability. If code and contract disagree, raise it; do not invent the missing half.
+A reader should be able to answer these questions quickly:
 
-The public API reference is generated in the backend and copied into `openapi/public.yaml`. Its provenance is recorded in `openapi/source.json`: source revision, SHA-256 digest, operation count and, when available, deployment workflow run ID. Verify the digest and release evidence together. Do not hand-edit the generated specification or add another OpenAPI document; specifications can be served as downloadable files even when absent from navigation.
+1. What can I do with this API?
+2. How do I get access and make my first authenticated request?
+3. Which inputs do I send, and what does the response mean?
+4. How do I handle a pending result, an error or a retry?
+5. Where can I get help?
 
-## Content boundaries
+## Approved customer details
 
-Never publish:
+| Item | Value |
+| --- | --- |
+| Sandbox API | `https://sandbox.ledig.io` |
+| Live API | `https://api.ledig.io` |
+| API support | `support@ledig.io` |
+| Payments documentation | This repository |
+| Website | `https://www.ledig.io` |
 
-- API secrets, keys, signing values, database URLs, provider credentials or private keys
-- customer records, personal data or real transaction payloads
-- internal admin routes, staff permissions or back-office procedures
-- provider identities, costs or routing logic
-- private repository links, internal plans or operational evidence
-- retired or simulated endpoints as if they were live
-- outbound webhook payloads or event names before the documented access and delivery behaviour are verified
+Call the environments **Sandbox** and **Live**. Explain their customer purpose without describing how they are hosted or connected internally. Do not publish internal environment addresses, deployment arrangements or approval procedures.
 
-Use placeholders such as `YOUR_API_KEY`, `LEDIG_API_KEY` and `example_quote_id`. Do not create realistic credential-shaped examples.
+Use Sandbox in getting-started examples. Make the selected environment explicit and keep credentials and resource IDs separate between environments. A public hostname does not prove that an account has access. Describe access requirements in customer language.
 
-## Current environment facts
+Do not claim that every Sandbox operation is simulated, all balances are test funds or any destination can safely receive test payments unless the behaviour is verified and approved. Any necessary limitation must explain what the customer should do, without exposing the internal infrastructure behind it.
 
-- Engineering staging: `https://api-staging.ledig.io`, for authorised controlled integration testing. It is not the future customer sandbox, and staging must not be described as universally simulated.
-- The customer sandbox and production access instructions are planned separately. Do not invent their hosts, credentials or test-funding behaviour.
-- Runnable examples use `LEDIG_API_BASE_URL` supplied by Ledig for the approved environment, with no default production target.
-- Support: `admin@ledig.io`
-- Customer webhooks depend on deployment configuration and the integration agreement. They are not in the current published endpoint reference. Do not describe them as universally enabled or disabled; publish a delivery contract only after verification.
+Use the support address consistently in navigation, guides, generated metadata and contact links. Do not use the administrative mailbox for customer support.
 
-Recheck these before changing them. A short-lived environment fact does not belong in five pages.
+## Source of truth and compatibility
 
-## Legacy platform
+The owning API implementation and its reviewed contract define behaviour. This repository explains that behaviour; prose and examples do not create or change it.
 
-The previous platform is retired. When old behaviour must be referenced, call it **legacy infra**, **old infra**, **existing legacy platform** or **old platform infrastructure**. Do not name its vendor or product.
+Before changing an endpoint description or example, check its request schema, response schema, authentication, required scopes, success statuses, error responses and retry behaviour. Verify current source and release evidence when describing a capability as available. If the implementation, schema and guide disagree, report the discrepancy instead of silently choosing a new contract.
 
-Do not present legacy compatibility routes as current API operations.
+Preserve all existing public behaviour unless the user explicitly approves a separate API change:
 
-## Writing
+- HTTP methods and paths;
+- parameter and field names, spelling, data types and required fields;
+- response envelopes, status codes, enums and documented errors;
+- API-key scopes, signatures, timestamp units and replay rules;
+- tenant/business ownership, permission and compliance checks;
+- fees, limits, amounts, balance meanings and payment state transitions;
+- pagination, idempotency, retries and webhook signing/delivery semantics.
 
-- Use active voice and second person.
-- Sentence case for headings.
-- One idea per sentence.
-- No emoji in headings or body copy.
-- Code formatting for paths, headers, field names and commands.
-- Every code sample must be runnable with the values a reader actually has, or clearly marked as illustrative.
-- Prefer tables for headers, error codes and limits.
-- Keep pages short enough to scan. Link to the page that owns a detail instead of repeating it.
+Do not rename a response field because its wording looks technical. Explain it clearly. Decimal strings must remain strings in examples; changing `"1250.00"` to `1250` changes the apparent contract.
 
-Use Mintlify components already used in this repository: `Card`, `Columns`, `Steps`, `Step`, `Note`, `Warning`, `Info`, `Tip`, `CodeGroup`.
+Customer-visible balance states, fees, limits, errors and security requirements belong in these docs. Internal financial records, provider selection and staff operations do not. Preserve necessary information while improving its explanation.
 
-## Mintlify workflow
+## Generated API reference
 
-```bash
-npm ci
-npm run dev
-npm run check
-```
+`openapi/public.yaml` is generated by the owning API project. Do not hand-edit that file or add an alternate specification. Fix customer descriptions, operation titles, examples and code samples at their generating source so automatic synchronization preserves the improvements.
 
-Use the pinned tools and lockfile. `npm run check` runs the content checks, regression tests, Mintlify validation and broken-link checks. `npm run check:content` runs the repository guard by itself. The local preview runs on port 3000.
+Only the approved public operations may appear. Keep the operation list in `docs.json` exactly aligned with the generated specification. A schema or downloadable specification can reveal information even when its page is absent from the sidebar.
 
-Use a branch and review the rendered changes before merging; never push directly to `main`. The Mintlify project, source repository, branch, root directory and custom-domain mapping must be confirmed before publication. This repository's existence is not proof that it currently serves the live domain. Once the reviewed connection is active, a merge to its deployment branch can publish immediately. Preview URLs may be public.
+`openapi/source.json` records safe source provenance: source revision, artifact digest, operation count and an optional deployment workflow run ID. Keep its digest and operation count accurate. Do not add private repository URLs, environment configuration or operational evidence. Provenance is maintainer metadata and must stay excluded from the documentation site.
 
-## API changes
+A documentation-only change may improve summaries, descriptions and examples. It must not alter a schema to accommodate an attractive example or change the security requirements to simplify a generated snippet.
 
-When the backend changes the public contract:
+## Customer language
 
-1. Change and validate the owning contract with its implementation.
-2. Copy only the generated customer specification and safe provenance into a reviewable docs pull request.
-3. Update affected guides, examples and navigation; automated copying does not verify prose.
-4. Confirm the documented revision is deployed and appropriate for the intended environment before publication.
-5. Never document a field or operation that the runtime does not return.
+Write directly to the customer using **you** and **your business**. Use short sentences and familiar verbs. Explain what to do before discussing edge cases. Introduce an unfamiliar term when it is needed.
 
-## Review
+Prefer:
 
-A pull request is ready when:
+| Instead of internal wording | Use customer wording |
+| --- | --- |
+| Effective financial profile | Your business |
+| Ledger balances | Your balances |
+| Configured conversion routes | Available conversions |
+| Approved origin | API URL |
+| Released customer contract | API reference |
+| Durable receiving request | Account setup request |
 
-- `npm run check` and required CI checks pass
-- the generated artifact's digest, operation navigation and source revision agree
-- deployment evidence supports present-tense availability claims
-- internal links resolve
-- no forbidden content from the list above is present
-- examples match the current contract
-- any removed page has a redirect in `docs.json` if it was publicly linked
+These are prose substitutions, not instructions to rename fields or change behaviour.
 
-Removing a page that existing customers may use needs a human decision and a redirect. Do not delete silently.
+Do not describe serializers, database tables, deployment pipelines, source revisions, internal approval gates, adapters or release plans in customer pages. Avoid repetitive warnings about what the documentation does not guarantee. Keep an important caution only when it changes a customer's action, and state the action plainly.
+
+Organize a guide around a useful task: prerequisites, request, example response, next step and relevant errors. Keep one authoritative explanation for shared concepts and link to it. Use sentence case headings. Do not add emoji, marketing superlatives or generic filler.
+
+Use the existing Mintlify components: `Card`, `Columns`, `Steps`, `Step`, `Note`, `Warning`, `Info`, `Tip` and `CodeGroup`. Use tables for exact values, headers, limits or error mappings. Keep tables short enough to read on mobile.
+
+## Examples that customers can use
+
+Every example is fictional. Do not use actual customer names, records, account numbers, wallet destinations, identities, requests or transaction payloads, even from a test account.
+
+Give meaningful sample values in response examples. For example, a balance may use currency `USD`, available amount `"1250.00"` and reserved amount `"100.00"`. Examples must fit the documented schema, precision, format, required fields, enums and status.
+
+Every successful JSON response must have an explicit example at the response media level so the renderer does not substitute generic values. A no-content response must remain empty. Where an endpoint has materially different outcomes, show the relevant alternatives accurately. Do not add fields merely to fill an example.
+
+Do not use `<string>`, `<number>` or similar renderer placeholders in request/response examples. Schema declarations such as `type: string` are valid and must remain unchanged. Dynamic onboarding or configuration data should use a clearly illustrative, minimal sample and explain how to retrieve the actual requirements.
+
+Use clear placeholders for credentials and resources the customer must supply, such as `YOUR_API_KEY`, `LEDIG_API_SECRET` and `YOUR_QUOTE_ID`. Never invent a credential-shaped string. Use reserved example domains for fictional email addresses and callback URLs.
+
+Authentication examples must distinguish the API key, generated signature and current timestamp. A signature or timestamp must never be shown as another API key. Runnable examples must compute the real signing input using the correct method, path/query, body bytes and timestamp units. Link to the shared signing guide instead of duplicating divergent algorithms.
+
+Every published operation, including public health checks, must supply a reviewed, non-empty `x-codeSamples` request example from its generating source. Keep `api.examples.autogenerate: false` in `docs.json` so Mintlify uses these examples instead of inventing request headers or placeholder values. Test runnable snippets at their source, and inspect the rendered result.
+
+A sample response is illustrative. A runnable request must use the reader's own authorized credentials, IDs and destinations. Clearly label snippets that show only a response body or a partial request. Do not silently send a request to Live or promise that copying a fictional account or wallet address will work.
+
+## Content that must never be published
+
+Neither the website, its downloadable artifacts nor this public repository may contain:
+
+- credentials, tokens, API secrets, private keys, seed phrases, webhook secrets, database URLs or provider credentials;
+- real customer records, identity documents, personal data or real transaction payloads;
+- private source links or internal operational evidence;
+- staff-only APIs, administration procedures or back-office permissions;
+- provider credentials, internal provider identities, provider costs, selection logic or routing diagnostics;
+- internal identifiers or metadata that are not part of the approved customer response;
+- retired, unimplemented or simulated operations presented as available customer APIs.
+
+Customer pages and generated reference content must also exclude internal environment addresses, administrative support contacts, infrastructure/deployment commentary and unnecessary engineering terminology.
+
+Retain the security details a customer needs to integrate safely: authentication, signature verification, resource ownership, retries, limits and error handling. Avoid both disclosure of internal implementation and removal of necessary customer instructions.
+
+When historical migration behaviour must be mentioned, use **legacy infra**, **old infra** or **existing legacy platform**. Do not identify its vendor or restore old routes as current operations.
+
+## Automated checks and their boundaries
+
+Run `npm run check` before a pull request is ready. It runs the public-content guard, its regression tests, Mintlify validation and broken-link checks. Use the pinned dependencies and lockfile; do not introduce tool upgrades into an editorial change.
+
+The content guard checks every tracked or proposed file, including unlinked pages and drafts. It also inspects decoded JSON/YAML values. Moving an unsafe page out of navigation or excluding it with `.mintignore` is not a security fix.
+
+Security checks apply to maintainer files and tests too. Only an explicit list of reviewed maintainer files is exempt from customer-language checks, so the rules can describe prohibited wording and tests can exercise it. New files are not automatically exempt by folder or filename. Do not expand this exception to make a failing page pass. The root governance files and tooling remain excluded from the Mintlify site.
+
+The guard enforces approved public API servers and support metadata, reference resolution, defined authentication schemes, operation navigation, provenance integrity and useful schema-compatible response examples. Tests must cover rejection cases and legitimate cases such as string schema types and no-content responses.
+
+The checks do not prove that prose is clear, that a fictional example matches every business rule, or that an API was deployed. Review those points separately. Do not claim a mocked or static test proves a live payment flow.
+
+Diagnostics must report locations and rule names, never the sensitive value that caused a failure. Construct synthetic secret-pattern test markers at runtime rather than committing realistic credential-shaped values.
+
+## Working and publishing process
+
+1. Read these instructions and inspect the affected implementation, contract and guide.
+2. Make a focused branch. Never push directly to `main`.
+3. Update the source of generated descriptions and examples where necessary, then regenerate the public artifact.
+4. Review every changed guide and its navigation. Preserve existing page URLs; a removed published page needs a redirect and an approved reason.
+5. Run `npm run check` and review rendered examples, links, headings and mobile layout. A static schema check does not replace looking at what customers see.
+6. Confirm the diff changes only the authorized documentation, metadata, examples, contributor guidance and tests. Any runtime or API behaviour change requires separate scope.
+7. Open a pull request with a concise explanation, validation results and any remaining publication dependencies. When generated-source changes accompany the guides, keep the docs PR in draft until the source release and verified provenance are ready. Prelaunch documentation may use the approved public API names ahead of activation. Confirm working DNS, TLS and API routing before customer launch; changing documentation does not configure those hosts.
+8. Require successful repository CI and human review before merging. Do not merge your own work or change branch protections to bypass a failed check.
+
+Local development uses `npm ci` and `npm run dev`. A local preview is sufficient when hosted previews are unavailable; do not purchase a plan or change paid features without authorization.
+
+The Mintlify deployment app check is separate from the repository's validation job. A skipped hosted preview is not evidence that validation ran or failed. Read the exact check result and verify the intended publication project, repository, branch and root configuration before claiming a change is live.
+
+Keep private engineering runbooks in the owning private project. Root `README.md`, `CONTRIBUTING.md` and this file may explain this public repository's maintenance workflow, but their source is still public and must obey the universal content restrictions above.

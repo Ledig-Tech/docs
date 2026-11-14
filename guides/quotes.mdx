@@ -1,46 +1,50 @@
 ---
 title: "Quotes"
-description: "Confirm executable pricing, payment fees, total debit and expiry."
+description: "Get the rate, fees and total cost before converting funds or sending a payment."
 ---
 
-A quote records the rate, amounts, fees and expiry for a conversion or payment. It does not move funds; a [transfer](/guides/transfers) executes the accepted terms.
+A quote tells you what you will pay and what you will receive. It includes the exchange rate, amounts, fees and expiry time. Creating a quote does not move funds. Create a [transfer](/guides/transfers) when you are ready to proceed.
 
 ## Discover currencies and rates
 
-`GET /v1/currencies` returns configured currency codes, decimal precision and networks. It does not promise that every listed asset has a currently available payment route. `GET /v1/rates` returns indicative rates for reference; use a fresh quote for executable terms.
+Call `GET /v1/currencies` for currency codes, decimal precision and supported networks. Call `GET /v1/rates` for indicative exchange rates. Indicative rates are useful for estimates; a quote gives you the rate you can use for a transaction.
 
-Send decimal strings at the source currency's precision. Do not round excess fractional digits silently or assume every currency uses two decimals. The server calculates the destination amount and validates its precision too.
+Send amounts as decimal strings using the currency's supported precision. For example, use `"100.00"` where two decimal places are supported. Do not assume that every currency uses two decimals.
 
-Use `GET /v1/liquidity/routes` to discover each conversion direction's minimum and maximum source amount. Payout method or network limits use the destination amount, and account allowances use USD equivalent. See [Limits](/guides/limits) before presenting a single maximum to a customer.
+Use `GET /v1/liquidity/routes` to check which conversions are available and their minimum and maximum amounts. See [Limits](/guides/limits) for the difference between conversion, payout and account limits.
 
 ## Discover payment methods and fees
 
-These reads answer different questions:
+| Operation | Use it to |
+| --- | --- |
+| `GET /v1/quotes/payment-options` | Find payment methods for your currency, amount and recipient. |
+| `GET /v1/payouts/catalogue` | View payout methods, fee bands and amount limits. |
+| `POST /v1/payouts/fee-estimate` | Estimate a payout fee before requesting a quote. |
+| `GET /v1/quotes/payout-fees` | View your payout fee schedule, including payments to Ledig businesses. |
 
-| Operation                        | Use                                                                                           |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| `GET /v1/quotes/payment-options` | Discover eligible deposit or withdrawal methods for the currency, amount and destination.     |
-| `GET /v1/payouts/catalogue`      | Display published payout fee bands, independently of whether sending is currently available.  |
-| `POST /v1/payouts/fee-estimate`  | Estimate the fee for an amount and exact crypto network, without creating a quote or payment. |
-| `GET /v1/quotes/payout-fees`     | Display the current customer payout-fee schedule, including internal Ledig transfers.         |
+These operations require the `quotes:read` scope.
 
-These discovery and fee operations require `quotes:read`; product access is checked separately.
+For a payout, request payment options with `type=withdraw`, the destination `currency` and the approved `recipientId`. Include `amount` to find methods that support the amount the recipient will receive. For crypto, include the destination's `chain`.
 
-For an external payout, supply `type=withdraw`, the destination `currency` and your approved `recipientId` to payment options. An optional `amount` filters options by limits. For crypto, include the matching `chain`. For an internal Ledig payment, supply `businessId` instead of `recipientId`; those two selectors are mutually exclusive.
+For a payment to a Ledig business, use `businessId` instead of `recipientId`. Do not send both.
 
-Choose a value from the returned `paymentMethodIds` array for `payOut.paymentMethodId`. The option's own `id` is not the payment method ID. Preserve its `invoiceRequired` association when presenting choices. An empty list means no eligible option for that request.
+Select a value from `paymentMethodIds` and use it as `payOut.paymentMethodId`. The option's own `id` is a different value. An empty list means no payment method is available for that request.
 
-If the selected option requires an invoice, include its valid `payOut.invoiceDocumentId` after completing the agreed dashboard or integration upload flow. Invoice-upload endpoints are not part of this published reference; contact Ledig to arrange that flow before using an invoice-required route. Do not invent a document ID or try to bypass the requirement with another method. `payOut.transferPurpose` remains optional; it does not replace the invoice.
+If the selected option has `invoiceRequired: true`, upload the invoice through your dashboard or the upload process agreed for your integration, then include `payOut.invoiceDocumentId`. Contact [support@ledig.io](mailto:support@ledig.io) if you need help with invoice uploads. `payOut.transferPurpose` is optional and does not replace a required invoice.
 
-The fee estimator is a non-mutating POST available with `quotes:read`, including a Read Only key. It requires `currency`, `payoutType` and a positive decimal `amount`; crypto also requires the exact `network`. A visible catalogue `bandId` can resolve an ambiguous band selection. A band is not permission to execute a payout.
+To discover receiving methods instead, use `type=deposit`. Receiving funds follows the [funding flow](/guides/funding); it does not use a deposit quote.
 
-Show pricing availability and payout availability separately. A priced band may remain visible while sending is unavailable, and an out-of-range amount can return `amountWithinLimits: false`. Missing or ambiguous pricing must not become a zero fee. Fetch a quote to confirm executable terms; do not cache these private responses or calculate the authoritative fee in your client.
+## Estimate a payout fee
 
-For crypto payouts, `maximumAmount: null` with `minimumAmount: "0"` means there is no configured payout-route amount maximum. Treat `null` as an absent route cap when displaying or filtering limits; account allowances still apply. Fiat payouts retain a bounded maximum. Keep separate supported bands separate, including any gaps between them. Continue to check payout availability and obtain a quote before sending.
+`POST /v1/payouts/fee-estimate` requires `currency`, `payoutType` and a positive decimal `amount`. Crypto payouts also require the exact `network`. If more than one fee band matches, include the `bandId` from the catalogue.
+
+This request does not create a quote or move funds. You can call it with a Read Only key that has `quotes:read`.
+
+Check the returned availability and `amountWithinLimits` along with the fee. A fee may be listed even when sending is temporarily unavailable. Missing pricing does not mean a zero fee. Use a quote to confirm the final cost, and do not cache these responses.
 
 ## Create the quote
 
-Illustrative request using an approved recipient and a payment method returned by discovery:
+This example converts 100 USDT to NGN and sends the result to a bank recipient. Replace the recipient and payment method IDs with values from your API responses:
 
 ```http
 POST /v1/quotes
@@ -49,7 +53,7 @@ Content-Type: application/json
 
 ```json
 {
-  "reference": "example_order_reference",
+  "reference": "order-1042",
   "sourceCurrency": "USDT",
   "destinationCurrency": "NGN",
   "sourceAmount": "100",
@@ -61,39 +65,52 @@ Content-Type: application/json
 }
 ```
 
-| Field                                   | Meaning                                                       |
-| --------------------------------------- | ------------------------------------------------------------- |
-| `sourceCurrency`, `destinationCurrency` | Enabled currency codes for this request.                      |
-| `sourceAmount`                          | Positive decimal string at the source currency's precision.   |
-| `reference`                             | Optional reference, up to 64 characters.                      |
-| `payOut`                                | Destination instruction; required for same-currency payments. |
+| Field | Meaning |
+| --- | --- |
+| `sourceCurrency` | The currency you are paying with. |
+| `destinationCurrency` | The currency you want to receive or send. |
+| `sourceAmount` | The amount to convert or pay, before fees. |
+| `reference` | Your optional reference, up to 64 characters. |
+| `payOut` | Where to send the funds. Required for same-currency payments. |
 
-For `payOut.type: fiat` or `crypto`, use an approved `recipientId` and eligible `paymentMethodId`. For crypto, include `chain` when required by the selected destination. A conversion between currencies can omit `payOut` when the converted amount stays in the Ledig balance.
+For a conversion that stays in your Ledig balance, omit `payOut`. For an external payment, use `payOut.type: "fiat"` or `"crypto"`, an approved `recipientId` and an available `paymentMethodId`. Include `chain` for crypto when required by the destination.
 
 ## Read fees and the total debit
 
-Read the returned fields together rather than adding a displayed fee a second time:
+Use the amounts in the response to show your customer the cost:
 
-| Field                                  | Meaning                                                                                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sourceAmount`                         | Conversion or payment principal in the source currency.                                                 |
-| `destinationAmount`, `rate`            | Accepted destination amount and rate. Use the returned amounts; do not recompute from indicative rates. |
-| `feeAmount`, `feeCurrency`             | Conversion fee, expressed in the source currency.                                                       |
-| `sourceDebitAmount`                    | Principal plus conversion fee only.                                                                     |
-| `payoutFeeAmount`, `payoutFeeCurrency` | Payout fee in the payout currency.                                                                      |
-| `payoutFeeSourceAmount`                | That payout fee expressed in the source currency.                                                       |
-| `totalFeeAmount`, `totalFeeCurrency`   | Conversion fee plus payout fee expressed together in the source currency.                               |
-| `totalSourceDebitAmount`               | Total source debit, including both accepted fee components.                                             |
+| Field | Meaning |
+| --- | --- |
+| `sourceAmount` | Amount before fees, in the source currency. |
+| `destinationAmount`, `rate` | Amount you receive and the exchange rate. |
+| `feeAmount`, `feeCurrency` | Conversion fee in the source currency. |
+| `sourceDebitAmount` | Source amount plus the conversion fee. |
+| `payoutFeeAmount`, `payoutFeeCurrency` | Payout fee in the destination currency. |
+| `payoutFeeSourceAmount` | Payout fee expressed in the source currency. |
+| `totalFeeAmount`, `totalFeeCurrency` | Both fees combined in the source currency. |
+| `totalSourceDebitAmount` | The full amount deducted from your source balance, including fees. |
 
-For example, if the accepted source principal is `100`, conversion fee is `1` and payout fee in source currency is `0.5`, `sourceDebitAmount` is `101`, `totalFeeAmount` is `1.5` and `totalSourceDebitAmount` is `101.5`. Do not add `payoutFeeAmount` again to that total, and do not add amounts expressed in different currencies.
+For example, a source amount of **100 USDT**, conversion fee of **1 USDT** and payout fee equivalent to **0.5 USDT** would produce:
 
-This arithmetic illustrates returned fields; it is not a fee schedule. The quote fixes the customer terms. Display `totalSourceDebitAmount` before confirmation and retain the quote ID and `expiresAt`.
+```json
+{
+  "sourceAmount": "100",
+  "sourceDebitAmount": "101",
+  "totalFeeAmount": "1.5",
+  "totalFeeCurrency": "USDT",
+  "totalSourceDebitAmount": "101.5"
+}
+```
+
+These fictional values illustrate the calculation, not a fee schedule. `totalSourceDebitAmount` already includes both fees. Do not add a payout fee to it again or add amounts in different currencies.
+
+Show `totalSourceDebitAmount` before confirmation. Save the quote ID and `expiresAt`.
 
 ## Pay a Ledig business
 
-Look up `GET /v1/ledig-businesses/{businessId}` with the exact destination ID and ask the sender to confirm the returned business name. This is not a search directory.
+Call `GET /v1/ledig-businesses/{businessId}` with the recipient business's exact ID. Confirm the returned business name before continuing.
 
-Create the quote with this `payOut` shape:
+Use this `payOut` shape in your quote:
 
 ```json
 {
@@ -103,23 +120,22 @@ Create the quote with this `payOut` shape:
 }
 ```
 
-Do not send `recipientId` or `chain`, and do not create a saved recipient for this flow. The destination must be eligible; sending to the same financial profile is rejected. Eligibility is checked again when the transfer executes.
+Do not send `recipientId` or `chain` for this payment. You do not need a saved recipient. You cannot use this flow to pay the same business account you are sending from.
 
 ## Expiry and readback
 
-`expiresAt` controls first execution. `GET /v1/quotes/{id}` reads the quote; `GET /v1/quotes` lists quotes using [cursor pagination](/guides/pagination).
+Use the quote before `expiresAt`. Read it with `GET /v1/quotes/{id}`, or list quotes with `GET /v1/quotes` and [cursor pagination](/guides/pagination).
 
-A quote is consumed once. If an unused quote expires, obtain new terms. If transfer creation might already have succeeded, reconcile or replay that transfer using its original identifiers before creating a replacement quote. A retained transfer can still be recovered after its original quote expires; see [transfer retries](/guides/transfers#retries).
-
-`payIn.type: temporary_bank_account` is reserved and returns `501 NOT_IMPLEMENTED`. Deposit-method discovery does not enable deposit quote execution.
+Each quote can create one transfer. If an unused quote expires, request a new quote. If you already submitted a transfer but did not receive the response, follow [transfer retries](/guides/transfers#retries) using the original identifiers before requesting another quote.
 
 ## Handle quote failures
 
-| Status and code | Meaning and next step |
+| Error | What to do |
 | --- | --- |
-| `404 RATE_NOT_FOUND` | An executable price or conversion direction is unavailable. Check the pair and current discovery results. |
-| `422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE` | `sourceAmount` is outside this conversion direction's bounds. Read `details.sourceCurrency`, `minimumAmount` and `maximumAmount`. |
-| `409 INSUFFICIENT_BALANCE` | Available funds do not cover the required debit. Include fees when checking the balance. |
-| `422 RATE_EXPIRED`, `RATE_STALE`, `RATE_NOT_YET_VALID` | Executable pricing is not current. Obtain fresh terms when pricing becomes available. |
+| `404 RATE_NOT_FOUND` | Check whether the currency pair is currently available. |
+| `422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE` | Adjust `sourceAmount` to the returned minimum and maximum for the source currency. |
+| `409 INSUFFICIENT_BALANCE` | Add funds or reduce the amount. Your balance must cover the full amount including fees. |
+| `422 RATE_EXPIRED`, `RATE_STALE` or `RATE_NOT_YET_VALID` | Request a fresh quote when pricing is available. |
+| `501 NOT_IMPLEMENTED` for `payIn.type: temporary_bank_account` | Use the [funding flow](/guides/funding) to receive funds. This quote option is not available. |
 
-These are distinct failures. An unavailable price is not a zero rate, and a limit failure does not mean funds were deducted. For a timeout or an uncertain write outcome, follow the [retry rules](/guides/idempotency) before starting another attempt. See [example error responses](/errors/errors-and-troubleshooting#quote-error-examples).
+A rejected quote does not move funds. If a request times out, follow the [retry rules](/guides/idempotency). See [example error responses](/errors/errors-and-troubleshooting#quote-error-examples).

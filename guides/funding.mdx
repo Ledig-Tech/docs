@@ -1,15 +1,21 @@
 ---
-title: "Funding"
-description: "Request receiving instructions and follow account or wallet setup."
+title: "Receive funds"
+description: "Get bank details or crypto deposit addresses and track incoming funds."
 ---
 
-A receiving account or wallet gives you funding instructions. Creating it does not credit your balance. Check the approved [environment and test assets](/introduction#environments) before sending funds.
+You can receive funds into your Ledig balance using a bank account or crypto deposit address. Request the receiving details first, then follow the instructions returned for that account or address.
 
-## Fiat receiving accounts
+For sandbox testing, use the funding instructions provided by Ledig. Keep your sandbox and live accounts, addresses and credentials separate.
 
-`GET /v1/virtual-accounts/{currency}` reads the profile's existing active account. It never creates one; `404` means no account is available through that read.
+## Get a bank account
 
-Request an account explicitly with `POST /v1/virtual-accounts`. This illustrative request uses a new, saved key for the intended setup:
+Read an existing receiving account for a currency:
+
+```http
+GET /v1/virtual-accounts/NGN
+```
+
+A `404` response means there is no available account for that currency. To request one, call `POST /v1/virtual-accounts` with an `Idempotency-Key`:
 
 ```http
 POST /v1/virtual-accounts
@@ -18,29 +24,52 @@ Content-Type: application/json
 ```
 
 ```json
-{ "currency": "NGN", "accountName": "Example Business", "intent": "resume" }
+{
+  "currency": "NGN",
+  "accountName": "Example Trading Ltd",
+  "intent": "resume"
+}
 ```
 
-Use a currency enabled for your business. Send `intent: "resume"` to continue setup or select the matching completed setup. If more than one existing account needs a choice, Ledig returns a conflict. Use `intent: "additional"` only when you deliberately need another supported account; it is not a retry mechanism. Omitting intent preserves earlier creation behaviour and can request another account after completion, so do not omit it as a shortcut for resuming.
+Choose a currency available to your business. Save the request body and idempotency key so you can safely retry if the response is lost.
 
-| Response | Meaning                                                                             |
-| -------- | ----------------------------------------------------------------------------------- |
-| `200`    | The account is available, or this is the original completed result.                 |
-| `202`    | A durable request is pending. Retain its `id`, `status` and `missing` requirements. |
+| `intent` | When to use it |
+| --- | --- |
+| `resume` | Continue an existing setup or retrieve its completed result. |
+| `additional` | Request another account when that option is available. |
 
-A pending response has `status` equal to `requested`, `manual_review`, `pending_provider` or `completed`, and `accountId` is populated when an account exists. Follow the returned missing requirements and any Ledig instructions. Do not keep submitting new keys to bypass a pending review.
+Use `resume` for the usual setup flow. Omitting `intent` can request another account after an earlier setup completes. If Ledig asks you to choose between existing accounts, resolve that choice before retrying.
 
-Read the issued account again when you need funding instructions. Use its returned account number, bank details and any required memorandum. Responses use `Cache-Control: no-store`; do not put bank details in logs or shared caches. A previous get-or-create integration must use the explicit POST for issuance.
+## Follow account setup
+
+| HTTP status | Meaning |
+| --- | --- |
+| `200` | The account details are ready. |
+| `202` | Setup is still in progress or needs more information. |
+
+For a pending setup, save its `id` and read the returned `status` and `missing` requirements. Status values are `requested`, `manual_review`, `pending_provider` and `completed`. The response includes `accountId` once an account exists.
+
+Complete any requested information. If setup needs review, contact [support@ledig.io](mailto:support@ledig.io) with the request ID. Reuse the original key when retrying the same request.
+
+Once the account is ready, read `GET /v1/virtual-accounts/{currency}` whenever you need its current account number, bank details and payment reference. These responses use `Cache-Control: no-store`; do not put account details in shared caches or logs.
 
 ## Discover crypto deposit networks
 
-Call `GET /v1/wallets/options` before showing a deposit form. Each network includes its exact `network` identifier, `testnet` flag and `supportedAssets`. Use those returned identifiers rather than a hardcoded list.
+Call `GET /v1/wallets/options` to see which networks and assets are available for deposits. Each option includes:
 
-An empty result means new wallet setup is unavailable. Existing wallets remain readable. A network suitable for an external payout recipient is not necessarily enabled for deposit address creation.
+| Field | Meaning |
+| --- | --- |
+| `network` | The exact network identifier to use in your request. |
+| `testnet` | Whether the option uses a test network. |
+| `supportedAssets` | The assets accepted on that network. |
+
+Use the returned options to populate your deposit form. An empty list means you cannot create a new address at that time; you can still read existing wallets.
+
+Deposit networks and [recipient networks](/guides/recipients#crypto-destinations) serve different purposes. Use deposit options when receiving funds.
 
 ## Create a network address
 
-`POST /v1/wallets/network` requests one address for the network's admitted assets. Save the key and exact body before sending. Illustrative request:
+Call `POST /v1/wallets/network` to request an address for the selected network. Replace `NETWORK_FROM_OPTIONS` with the exact identifier returned by deposit options:
 
 ```http
 POST /v1/wallets/network
@@ -49,30 +78,44 @@ Content-Type: application/json
 ```
 
 ```json
-{ "nickname": "Treasury", "network": "NETWORK_FROM_OPTIONS" }
+{
+  "nickname": "Customer deposits",
+  "network": "NETWORK_FROM_OPTIONS"
+}
 ```
 
-Use the exact identifier returned by wallet options. HTTP `201` means `data.status` is `ready`; HTTP `202` means `pending`. Retain `data.requestId` in either case.
+Save the body and key before submitting. The response returns `data.requestId`; keep it even if setup is still pending.
 
-Read progress with `GET /v1/wallets/network/{requestId}`. The read returns HTTP `200` with the current status:
+| Response | Next step |
+| --- | --- |
+| HTTP `201`, `data.status: ready` | Use the returned address for its listed assets. |
+| HTTP `202`, `data.status: pending` | Read the setup request using its `requestId`. |
 
-| Data                                             | What to do                                                                                                      |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `status: ready`                                  | Use the returned address and wallet instructions for the listed assets only.                                    |
-| `status: pending`, `setupState: processing`      | Poll the same request with bounded backoff.                                                                     |
-| `status: pending`, `setupState: review_required` | Retain the request ID and contact Ledig. Repeated polling or a replacement request does not resolve the review. |
-| `status: pending`, no `setupState`               | An older pending response. Keep the same request identity; ask Ledig if it remains unresolved.                  |
+## Check address setup
 
-A pending result has no usable address and an empty wallet list. The status read can finish the original setup, but never issues another address. `404` means the request is missing or unavailable to the selected profile.
+Call `GET /v1/wallets/network/{requestId}`. It returns HTTP `200` with the current setup result:
 
-## Single-asset wallets and existing addresses
+| Result | What to do |
+| --- | --- |
+| `status: ready` | Show the address and its deposit instructions. |
+| `status: pending`, `setupState: processing` | Check again after a short delay, increasing the delay between attempts. |
+| `status: pending`, `setupState: review_required` | Contact support with the request ID. |
+| `status: pending`, no `setupState` | Keep the same request ID and contact support if setup remains pending. |
 
-`POST /v1/wallets` remains available for a single coin and network. It requires `nickname`, `coin`, `network` and an `Idempotency-Key`; select values from the deposit options response. Reuse the original key and body after an uncertain outcome.
+A pending result does not contain a usable address. A `404` response means the request was not found for your business. Keep the original request rather than creating a replacement after a timeout.
 
-`GET /v1/wallets` lists your wallets; `GET /v1/wallets/{id}` reads one. If an address includes a memo or tag, send it with every deposit. Never substitute a mainnet address, network or asset for a returned testnet identity.
+## Read existing wallets
 
-An issuance conflict can mean the original request needs reconciliation. Preserve its key and request ID; do not request a replacement merely because a response was lost.
+`GET /v1/wallets` lists your deposit wallets. Use `GET /v1/wallets/{id}` to read one wallet.
+
+You can also create a wallet for a single asset with `POST /v1/wallets`. Send `nickname`, `coin`, `network` and an `Idempotency-Key`, using an asset and network from deposit options.
+
+<Warning>
+  Send only the asset on the network listed in the receiving instructions. Include
+  the memo or tag when one is returned. Using a different network or omitting a
+  required memo can prevent your deposit from being credited.
+</Warning>
 
 ## Confirm funds are available
 
-An observed bank transfer or chain transaction can still require processing or review. Use [Transactions](/guides/transactions) for the customer record and [Balances](/guides/balances) for available funds. Wallet setup, deposit observation and spendable balance are separate states.
+Creating an account or address does not add funds. After sending a deposit, check [Transactions](/guides/transactions) for its progress and [Balances](/guides/balances) for the amount available to spend.
