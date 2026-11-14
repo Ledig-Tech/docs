@@ -147,7 +147,7 @@ Diagnostics must report locations and rule names, never the sensitive value that
 4. Review every changed guide and its navigation. Preserve existing page URLs; a removed published page needs a redirect and an approved reason.
 5. Run `npm run check` and review rendered examples, links, headings and mobile layout. A static schema check does not replace looking at what customers see.
 6. Confirm the diff changes only the authorized documentation, metadata, examples, contributor guidance and tests. Any runtime or API behaviour change requires separate scope.
-7. Open a pull request with a concise explanation, validation results and any remaining publication dependencies.
+7. Open a pull request with a concise explanation, validation results and any remaining publication dependencies. When generated-source changes accompany the guides, keep the docs PR in draft until the source release and verified provenance are ready. Confirm that the approved public API URLs have working DNS, TLS and API routing before publication; changing documentation does not configure those hosts.
 8. Require successful repository CI and human review before merging. Do not merge your own work or change branch protections to bypass a failed check.
 
 Local development uses `npm ci` and `npm run dev`. A local preview is sufficient when hosted previews are unavailable; do not purchase a plan or change paid features without authorization.

@@ -8397,7 +8397,7 @@ components:
       schema:
         type: string
         minLength: 1
-      example: business_example_001
+      example: institution_example_001
     ActingBusinessId:
       in: header
       name: X-Ledig-Acting-Business-Id
@@ -8459,7 +8459,7 @@ components:
       schema:
         type: string
         minLength: 1
-      example: profile_example_001
+      example: institution_example_001
     Limit:
       in: query
       name: limit
