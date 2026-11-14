@@ -2706,8 +2706,8 @@ paths:
                   type: string
             example:
               nickname: Customer deposits
-              coin: USDT
-              network: ethereum
+              coin: USDC
+              network: ETHEREUM_SEPOLIA
       responses:
         "201":
           description: Wallet created.
@@ -2728,8 +2728,8 @@ paths:
                   id: wallet_example_001
                   profileId: profile_example_001
                   nickname: Customer deposits
-                  coin: USDT
-                  network: ethereum
+                  coin: USDC
+                  network: ETHEREUM_SEPOLIA
                   address: "0x1111111111111111111111111111111111111111"
                   memo: ""
                   createdAt: 2026-01-15T10:00:00.000Z
@@ -2765,10 +2765,11 @@ paths:
             const method = "POST";
             const path = `/v1/wallets`;
             const pathWithQuery = path;
+            // Choose the network and supported asset returned by GET /v1/wallets/options in this environment.
             const body = {
               "nickname": "Customer deposits",
-              "coin": "USDT",
-              "network": "ethereum"
+              "coin": required("LEDIG_DEPOSIT_ASSET"),
+              "network": required("LEDIG_DEPOSIT_NETWORK")
             };
             const rawBody = JSON.stringify(body);
             const headers = { "Accept": "application/json" };
@@ -2818,8 +2819,8 @@ paths:
                   - id: wallet_example_001
                     profileId: profile_example_001
                     nickname: Customer deposits
-                    coin: USDT
-                    network: ethereum
+                    coin: USDC
+                    network: ETHEREUM_SEPOLIA
                     address: "0x1111111111111111111111111111111111111111"
                     memo: ""
                     createdAt: 2026-01-15T10:00:00.000Z
@@ -2898,8 +2899,8 @@ paths:
                   id: wallet_example_001
                   profileId: profile_example_001
                   nickname: Customer deposits
-                  coin: USDT
-                  network: ethereum
+                  coin: USDC
+                  network: ETHEREUM_SEPOLIA
                   address: "0x1111111111111111111111111111111111111111"
                   memo: ""
                   createdAt: 2026-01-15T10:00:00.000Z
@@ -2977,13 +2978,13 @@ paths:
                 status: success
                 data:
                   networks:
-                    - network: ethereum
-                      name: Ethereum
-                      testnet: false
+                    - network: ETHEREUM_SEPOLIA
+                      name: Ethereum Sepolia
+                      testnet: true
                       supportedAssets:
-                        - code: USDT
-                          name: Tether
-                          testToken: false
+                        - code: USDC
+                          name: USD Coin
+                          testToken: true
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3050,7 +3051,7 @@ paths:
               $ref: "#/components/schemas/CreateNetworkWalletRequest"
             example:
               nickname: Customer deposits
-              network: ethereum
+              network: ETHEREUM_SEPOLIA
       responses:
         "201":
           description: The complete receiving setup is ready.
@@ -3070,17 +3071,17 @@ paths:
                 data:
                   requestId: wallet_request_example_001
                   status: ready
-                  network: ethereum
+                  network: ETHEREUM_SEPOLIA
                   address: "0x1111111111111111111111111111111111111111"
                   supportedAssets:
-                    - code: USDT
-                      name: Tether
-                      testToken: false
+                    - code: USDC
+                      name: USD Coin
+                      testToken: true
                   wallets:
                     - id: wallet_example_001
                       nickname: Customer deposits
-                      coin: USDT
-                      network: ethereum
+                      coin: USDC
+                      network: ETHEREUM_SEPOLIA
                       address: "0x1111111111111111111111111111111111111111"
                       memo: ""
                       createdAt: 2026-01-15T10:00:00.000Z
@@ -3103,12 +3104,12 @@ paths:
                 data:
                   requestId: wallet_request_example_001
                   status: pending
-                  network: ethereum
+                  network: ETHEREUM_SEPOLIA
                   address: null
                   supportedAssets:
-                    - code: USDT
-                      name: Tether
-                      testToken: false
+                    - code: USDC
+                      name: USD Coin
+                      testToken: true
                   wallets: []
                   setupState: processing
         "400":
@@ -3146,9 +3147,10 @@ paths:
             const method = "POST";
             const path = `/v1/wallets/network`;
             const pathWithQuery = path;
+            // Choose the network and supported asset returned by GET /v1/wallets/options in this environment.
             const body = {
               "nickname": "Customer deposits",
-              "network": "ethereum"
+              "network": required("LEDIG_DEPOSIT_NETWORK")
             };
             const rawBody = JSON.stringify(body);
             const headers = { "Accept": "application/json" };
@@ -3204,17 +3206,17 @@ paths:
                 data:
                   requestId: wallet_request_example_001
                   status: ready
-                  network: ethereum
+                  network: ETHEREUM_SEPOLIA
                   address: "0x1111111111111111111111111111111111111111"
                   supportedAssets:
-                    - code: USDT
-                      name: Tether
-                      testToken: false
+                    - code: USDC
+                      name: USD Coin
+                      testToken: true
                   wallets:
                     - id: wallet_example_001
                       nickname: Customer deposits
-                      coin: USDT
-                      network: ethereum
+                      coin: USDC
+                      network: ETHEREUM_SEPOLIA
                       address: "0x1111111111111111111111111111111111111111"
                       memo: ""
                       createdAt: 2026-01-15T10:00:00.000Z
@@ -3296,13 +3298,13 @@ paths:
                 status: success
                 data:
                   networks:
-                    - network: ethereum
-                      name: Ethereum
-                      testnet: false
+                    - network: ETHEREUM_SEPOLIA
+                      name: Ethereum Sepolia
+                      testnet: true
                       supportedAssets:
-                        - code: USDT
-                          name: Tether
-                          testToken: false
+                        - code: USDC
+                          name: USD Coin
+                          testToken: true
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3640,7 +3642,7 @@ paths:
               type: crypto_address
               fields:
                 - name: network
-                  value: ethereum
+                  value: ETHEREUM_SEPOLIA
                 - name: address
                   value: "0x1111111111111111111111111111111111111111"
                 - name: accountName
@@ -3666,13 +3668,13 @@ paths:
                   profileId: profile_example_001
                   recipientRequirementId: crypto_address
                   fields:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     address: "0x1111111111111111111111111111111111111111"
                     accountName: Example Treasury
                   destinationScope:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     assets:
-                      - USDT
+                      - USDC
                   is3rdParty: true
                   oneTime: false
                   deletedAt: null
@@ -3728,12 +3730,13 @@ paths:
             const method = "POST";
             const path = `/v1/recipients`;
             const pathWithQuery = path;
+            // Choose the network returned by GET /v1/recipient-requirements/crypto-networks in this environment.
             const body = {
               "type": "crypto_address",
               "fields": [
                 {
                   "name": "network",
-                  "value": "ethereum"
+                  "value": required("LEDIG_RECIPIENT_NETWORK")
                 },
                 {
                   "name": "address",
@@ -3801,13 +3804,13 @@ paths:
                     profileId: profile_example_001
                     recipientRequirementId: crypto_address
                     fields:
-                      network: ethereum
+                      network: ETHEREUM_SEPOLIA
                       address: "0x1111111111111111111111111111111111111111"
                       accountName: Example Treasury
                     destinationScope:
-                      network: ethereum
+                      network: ETHEREUM_SEPOLIA
                       assets:
-                        - USDT
+                        - USDC
                     is3rdParty: true
                     oneTime: false
                     deletedAt: null
@@ -3906,13 +3909,13 @@ paths:
                   profileId: profile_example_001
                   recipientRequirementId: crypto_address
                   fields:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     address: "0x1111111111111111111111111111111111111111"
                     accountName: Example Treasury
                   destinationScope:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     assets:
-                      - USDT
+                      - USDC
                   is3rdParty: true
                   oneTime: false
                   deletedAt: null
@@ -4010,13 +4013,13 @@ paths:
                   profileId: profile_example_001
                   recipientRequirementId: crypto_address
                   fields:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     address: "0x1111111111111111111111111111111111111111"
                     accountName: Example Treasury
                   destinationScope:
-                    network: ethereum
+                    network: ETHEREUM_SEPOLIA
                     assets:
-                      - USDT
+                      - USDC
                   is3rdParty: true
                   oneTime: false
                   deletedAt: 2026-01-15T10:00:00.000Z
@@ -4220,7 +4223,7 @@ paths:
             minLength: 1
             maxLength: 100
           description: The crypto network to use when checking your business's payout fees.
-          example: ethereum
+          example: ETHEREUM_SEPOLIA
         - in: query
           name: recipientId
           required: false
