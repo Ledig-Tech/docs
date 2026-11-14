@@ -1201,6 +1201,94 @@ paths:
           **Required scope:** `view_rates`
 
           Returns indicative bid and ask rates for the currency pairs available to the business. Rates are a reference, not executable terms: create a quote to fix a rate, a destination amount and an expiry. Internal rate update timestamps are not published.
+  /v1/liquidity/routes:
+    get:
+      tags:
+        - Currencies and rates
+      operationId: listLiquidityRoutes
+      summary: List configured conversion routes for the effective financial profile
+      description: Lists conversion directions, source-currency limits and optional executable-rate estimates.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - in: query
+          name: sourceCurrency
+          required: false
+          description: Exact source currency, trimmed and uppercased before validation.
+          schema:
+            type: string
+            pattern: ^\s*[A-Za-z0-9]{2,12}\s*$
+          example: USDT
+        - in: query
+          name: destinationCurrency
+          required: false
+          description: Exact destination currency, trimmed and uppercased before validation.
+          schema:
+            type: string
+            pattern: ^\s*[A-Za-z0-9]{2,12}\s*$
+          example: NGN
+      responses:
+        "200":
+          description: Selected route configuration and optional pricing estimate for the authorized profile, without execution guarantees.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ClientLiquidityRoute"
+              example:
+                status: success
+                data:
+                  - id: route_example
+                    sourceCurrency: USDT
+                    destinationCurrency: NGN
+                    sourceAssetType: crypto
+                    destinationAssetType: fiat
+                    minAmount: "10"
+                    maxAmount: "50000"
+                    feeBps: 100
+                    feeCurrency: USDT
+                    feeMode: added_on_top
+                    status: active
+                    availability: available
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          description: Authoritative route data could not be read. No fixture fallback is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+      x-required-service: quotes
+      x-scope: view_rates
+      x-mint:
+        content: |-
+          **Required scope:** `view_rates`
+
+          Lists conversion routes for the selected business. Requires view_rates and quotes service access. Filter by sourceCurrency and destinationCurrency, or omit both for all matching directions. The array is not paginated and no matches returns an empty array. minAmount and maxAmount apply to the amount you convert, in sourceCurrency; reverse directions have separate limits. Fees are added on top of the source principal. availability and optional pricing are discovery hints, not a reservation or guarantee. Create a quote to confirm current terms. Payout method/network limits are separate: read GET /v1/payouts/catalogue for amount bands in destination-currency units. Unknown or repeated query parameters are rejected. Responses are Cache-Control: no-store.
   /v1/balances:
     get:
       tags:
@@ -1788,7 +1876,13 @@ paths:
       summary: List recipients
       description: Lists the profile's recipients and their review status.
       parameters:
-        - $ref: "#/components/parameters/Limit"
+        - in: query
+          name: limit
+          description: Positive integer page size. Values greater than 100 are accepted and capped at 100; follow pagination.nextCursor for more results.
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Sort"
       responses:
@@ -1816,7 +1910,7 @@ paths:
         content: |-
           **Required scope:** `recipient_read`
 
-          Lists the profile's recipients with their review status. Use `limit`, `cursor` and `sort`; the response includes `pagination.nextCursor`.
+          Lists the profile's recipients with their review status. Use `limit`, `cursor` and `sort`; the response includes `pagination.nextCursor`. limit must be a positive integer. Values above 100 are accepted and capped at 100, rather than rejected; follow the returned cursor for more results.
   /v1/recipients/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
@@ -2033,7 +2127,7 @@ paths:
         content: |-
           **Required scope:** `quotes:read`
 
-          Lists the payout or collection methods enabled for a currency, with their fees, limits and stable `paymentMethodIds`. Pass one of those IDs in a quote's `payOut`. Use `type=withdraw` for payouts and `type=deposit` for collection options. Supply `amount` to exclude options whose limits do not cover it.
+          Lists the payout or collection methods enabled for a currency, with their fees, limits and stable `paymentMethodIds`. Pass one of those IDs in a quote's `payOut`. Use `type=withdraw` for payouts and `type=deposit` for collection options. Supply `amount` in the payout/destination currency to exclude options whose limits do not cover it. These limits belong to the chosen payout method or network, not every payment in that currency. Read GET /v1/payouts/catalogue for effective supported bands; keep disjoint bands separate and do not fill gaps. A missing option or missing limits does not mean unlimited.
   /v1/payouts/catalogue:
     get:
       tags:
@@ -2218,6 +2312,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
+                missingRecipient:
+                  value:
+                    status: error
+                    code: BAD_REQUEST
+                    message: payOut.recipientId is required.
                 amountPrecision:
                   summary: A zero-decimal currency received a non-zero fractional amount.
                   value:
@@ -2234,16 +2333,61 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "409":
-          description: The selected provider conversion route is unavailable. Missing adapters, fresh capacity or required execution policy fail closed; no fallback global route is substituted. INSTANT_CONVERSION_LIMIT_EXCEEDED preserves the caller’s safe daily/monthly allowance details; a new eligible quote may be needed after the original request outcome is resolved.
+        "404":
+          description: No active conversion route or executable price exists for the requested currency direction. A missing recipient or payout method can also return NOT_FOUND.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-              example:
-                status: error
-                code: RATE_PROVIDER_CONVERSION_UNAVAILABLE
-                message: Conversion is not available for this route.
+              examples:
+                priceUnavailable:
+                  value:
+                    status: error
+                    code: RATE_NOT_FOUND
+                    message: A price is currently unavailable for this pair. Try again later.
+        "409":
+          description: Available source balance cannot cover the principal and fees (INSUFFICIENT_BALANCE), the selected conversion route is unavailable, pricing conflicts, or the business conversion allowance is exceeded. INSTANT_CONVERSION_LIMIT_EXCEEDED includes safe source-currency daily/monthly allowance details. Resolve the cause before requesting another quote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                insufficientBalance:
+                  value:
+                    status: error
+                    code: INSUFFICIENT_BALANCE
+                    message: Available balance is not sufficient for this action.
+                conversionUnavailable:
+                  value:
+                    status: error
+                    code: RATE_PROVIDER_CONVERSION_UNAVAILABLE
+                    message: Conversion is not available for this route.
+        "422":
+          description: The source conversion amount is outside the configured range (RATE_ROUTE_AMOUNT_OUT_OF_RANGE), current conversion capacity is insufficient (RATE_ROUTE_CAPACITY_EXCEEDED), or the price is expired, stale, not yet valid or indicative rather than executable. Range details use source-currency units, not the amount the recipient receives. Discovery is read-only; quote creation rechecks eligibility.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                conversionAmountOutsideRange:
+                  value:
+                    status: error
+                    code: RATE_ROUTE_AMOUNT_OUT_OF_RANGE
+                    message: The amount you convert must be between 10 and 50000 USDT for this conversion direction.
+                    details:
+                      sourceCurrency: USDT
+                      minimumAmount: "10"
+                      maximumAmount: "50000"
+                conversionAmountUnavailable:
+                  value:
+                    status: error
+                    code: RATE_ROUTE_CAPACITY_EXCEEDED
+                    message: The requested conversion amount is not currently available. Try a smaller amount or try again later.
+                expiredPrice:
+                  value:
+                    status: error
+                    code: RATE_EXPIRED
+                    message: This price has expired. Request a new quote.
         "423":
           description: "COMPLIANCE_REVIEW_REQUIRED: the requested payment is held for review. No private review or provider detail is returned."
           content:
@@ -2252,18 +2396,34 @@ paths:
                 $ref: "#/components/schemas/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
-        "503":
-          description: Required provider data is unavailable or malformed; retry after availability is restored.
+        "501":
+          description: Temporary-bank-account pay-in quotes are reserved but not implemented.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                status: error
+                code: NOT_IMPLEMENTED
+                message: Temporary-bank-account quotes are not implemented.
+        "503":
+          description: A required dependency is unavailable, or the selected payout method/network cannot support the destination amount or current eligibility. For amount failures, check the destination-currency payout bands; do not treat this as a conversion or currency-wide limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                payoutAmountOutsideLimits:
+                  value:
+                    status: error
+                    code: PROVIDER_UNAVAILABLE
+                    message: The amount sent to the recipient is outside the limits for this payout method or network. Check the payout limits in the recipient's currency.
       x-scope: quotes:write
       x-mint:
         content: |-
           **Required scope:** `quotes:write`
 
-          Prices a conversion or payout and fixes the rate, destination amount and expiry. Send `sourceAmount`; the server calculates `destinationAmount`. A same-currency quote must include `payOut`. `payIn` with `temporary_bank_account` is reserved and returns `501`. A quote is single-use and is consumed by `POST /v1/transfers`.
+          Prices a conversion or payout and fixes the rate, destination amount and expiry. Send `sourceAmount`; the server calculates `destinationAmount`. A same-currency quote must include `payOut`. `payIn` with `temporary_bank_account` is reserved and returns `501`. A quote is single-use and is consumed by `POST /v1/transfers`. Discover conversion limits through GET /v1/liquidity/routes (source-currency principal) and payout bands through GET /v1/payouts/catalogue (destination amount). Quote creation still rechecks all limits and the available source balance including fees. Handle 404 RATE_NOT_FOUND, 422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE and 409 INSUFFICIENT_BALANCE separately; the response examples describe these cases. Per-payment/monthly account payout allowances are checked separately at transfer admission in USD equivalent.
     get:
       tags:
         - Quotes
@@ -2396,12 +2556,12 @@ paths:
                   value:
                     status: error
                     code: PAYOUT_TRANSACTION_LIMIT_EXCEEDED
-                    message: This payout exceeds the business transaction limit.
+                    message: This payment exceeds your account limit per payment, measured in USD equivalent.
                 monthlyLimit:
                   value:
                     status: error
                     code: PAYOUT_MONTHLY_LIMIT_EXCEEDED
-                    message: This payout exceeds the business monthly allowance.
+                    message: This payment exceeds your account remaining monthly allowance, measured in USD equivalent.
         "423":
           description: "COMPLIANCE_REVIEW_REQUIRED: the requested payment is held for review. No private review or provider detail is returned."
           content:
@@ -3318,6 +3478,69 @@ components:
           type: number
         Ask:
           type: number
+    ClientLiquidityRoute:
+      type: object
+      additionalProperties: false
+      description: Customer route, permitted amount limits, fee terms, availability and optional price estimate. Exact capacity, provider identities, configuration scope and update times stay private.
+      required:
+        - id
+        - sourceCurrency
+        - destinationCurrency
+        - sourceAssetType
+        - destinationAssetType
+        - minAmount
+        - maxAmount
+        - feeBps
+        - feeCurrency
+        - feeMode
+        - status
+        - availability
+      properties:
+        id:
+          type: string
+          description: Route reference for display or support. Not accepted as routeId by quote creation.
+        sourceCurrency:
+          type: string
+        destinationCurrency:
+          type: string
+        sourceAssetType:
+          type: string
+          description: Stored source asset class, such as crypto or fiat.
+        destinationAssetType:
+          type: string
+          description: Stored destination asset class, such as crypto or fiat.
+        minAmount:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          description: Minimum source amount per conversion.
+        maxAmount:
+          type: string
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          description: Maximum source amount per conversion.
+        feeBps:
+          type: integer
+          minimum: 0
+          maximum: 10000
+          description: Conversion fee in basis points, charged on top of source principal.
+        feeCurrency:
+          type: string
+          description: Equal to sourceCurrency.
+        feeMode:
+          type: string
+          const: added_on_top
+        status:
+          type: string
+          enum:
+            - active
+          description: Route configuration is enabled. Pricing, balance, eligibility and compliance are checked separately.
+        pricing:
+          $ref: "#/components/schemas/ClientLiquidityPricing"
+        availability:
+          type: string
+          enum:
+            - available
+            - unavailable
+          description: Customer route availability. Exact Treasury and provider capacity is not published; execution revalidates the requested amount.
     ClientBalance:
       type: object
       additionalProperties: false
@@ -4429,6 +4652,61 @@ components:
               items:
                 type: object
                 additionalProperties: true
+    ClientLiquidityPricing:
+      type: object
+      additionalProperties: false
+      description: Read-only final pricing for the authorized effective business and exact route direction. Only the applicable bid or ask is populated, in quote-currency units per base unit. No internal adjustment IDs or commercial terms are exposed. This is not a persisted quote or a promise of amount eligibility.
+      required:
+        - status
+        - pair
+        - baseCurrency
+        - quoteCurrency
+        - side
+        - bid
+        - ask
+        - expiresAt
+      properties:
+        status:
+          type: string
+          enum:
+            - available
+            - unavailable
+        pair:
+          type:
+            - string
+            - "null"
+          description: Canonical base/quote pair independent of source/destination direction.
+        baseCurrency:
+          type:
+            - string
+            - "null"
+        quoteCurrency:
+          type:
+            - string
+            - "null"
+        side:
+          type:
+            - string
+            - "null"
+          enum:
+            - bid
+            - ask
+            - null
+        bid:
+          type:
+            - string
+            - "null"
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+        ask:
+          type:
+            - string
+            - "null"
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+        expiresAt:
+          type:
+            - string
+            - "null"
+          format: date-time
     CryptoNetworkOption:
       type: object
       additionalProperties: false
@@ -5227,13 +5505,6 @@ components:
       required: true
       schema:
         type: string
-    Limit:
-      in: query
-      name: limit
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
     Cursor:
       in: query
       name: cursor
@@ -5255,6 +5526,13 @@ components:
       schema:
         type: string
         minLength: 1
+    Limit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
   securitySchemes:
     BearerAuth:
       type: http
