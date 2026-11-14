@@ -1,39 +1,46 @@
 ---
 title: "Webhooks"
-description: "Confirm event delivery for your integration and reconcile with the read API."
+description: "Receive updates on your server and keep payment status in sync."
 ---
 
-Webhook availability depends on the environment and your business's enabled integration. The current published endpoint reference does not include a general webhook-management or event-payload contract. A website claim or an API deployment does not confirm delivery for your business.
+Webhooks send updates to your server so your integration can react to account activity. Contact [support@ledig.io](mailto:support@ledig.io) to set up delivery and obtain the event types, payload examples and signature-verification instructions for your integration.
 
-If you need events, agree enablement and the receiver contract with [admin@ledig.io](mailto:admin@ledig.io). Verify an authorised test delivery before relying on notifications. Do not guess event names, payload fields, signature rules or replay endpoints, and do not reuse API request signing as webhook verification.
+Set up separate receivers or configurations for sandbox and live deliveries. Test delivery and signature verification before relying on events to update payment status.
 
-## Use the documented reads
+## Handle deliveries
 
-| What you are tracking       | Read                                  |
-| --------------------------- | ------------------------------------- |
-| Transfer or payout progress | `GET /v1/transfers/{id}`              |
-| Transaction history         | `GET /v1/transactions`                |
-| Spendable funds             | `GET /v1/balances`                    |
-| Network address setup       | `GET /v1/wallets/network/{requestId}` |
-| Existing receiving account  | `GET /v1/virtual-accounts/{currency}` |
+Your receiver should:
 
-Poll with bounded backoff and honour rate-limit responses. Walk history using returned cursors. Reads show the documented customer state; they are not a promise that every internal state transition becomes a public event.
+- Verify each delivery using the webhook verification instructions and secret supplied for that environment.
+- Use the delivery identifiers to recognise duplicates.
+- Handle events that arrive later than expected or out of order.
+- Read the resource when you need its current status.
 
-## Before depending on delivery
+Keep webhook secrets on your server. Do not reuse the API request-signing process for webhook verification, and keep complete event bodies and signing values out of logs.
 
-Confirm the exact event catalogue, raw-body signature verification, timestamp checks, secret rotation, delivery identifiers, duplicate handling, out-of-order events, retries and replay policy. Use resource reads to reconcile the current outcome even when notifications are enabled.
+## Confirm the current status
 
-Keep receiver secrets on your server. Do not log complete event bodies or signing values, and never use an unverified event to treat a payment as completed.
+You can also use these endpoints to keep your integration up to date:
+
+| What you need | Endpoint |
+| --- | --- |
+| Transfer progress | `GET /v1/transfers/{id}` |
+| Transaction history | `GET /v1/transactions` |
+| Available funds | `GET /v1/balances` |
+| Crypto address setup | `GET /v1/wallets/network/{requestId}` |
+| Bank receiving details | `GET /v1/virtual-accounts/{currency}` |
+
+Leave a delay between status requests and increase it while you wait. Follow `Retry-After` when returned. Use the returned cursors when reading transaction history.
 
 ## Environment label
 
-Enabled customer webhook deliveries include the `x-ledig-environment` header:
+The `x-ledig-environment` header identifies the delivery environment:
 
 | Value | Environment |
 | --- | --- |
-| `sandbox` | Staging or development |
-| `live` | Production |
+| `sandbox` | Sandbox |
+| `live` | Live |
 
-Ledig sets this label from the sending environment. Retries retain the same label. Deliveries published before the header was introduced may lack it, including replays. It does not change the event body or the agreed signature-verification process.
+Retries keep the same label. A replay of an older event may not include it.
 
-Use the label for display and diagnostics, not authentication or permission to process an event. The event signature does not authenticate this extra header. Continue verifying the signature with the secret configured for your approved environment. The `sandbox` label does not promise that every service or payment uses simulated data; follow your agreed testing scope.
+Use the label to help distinguish deliveries in your integration. It is not covered by the event signature and must not replace signature verification or your receiver's environment configuration.

@@ -23,7 +23,9 @@ Read [AGENTS.md](AGENTS.md). This repository is public; the backend owns the API
 - Links resolve and navigation still builds.
 - Removed pages have redirects in `docs.json`.
 - The change does not present legacy or simulated behaviour as current.
-- Engineering staging is not called the future customer sandbox, and examples have no implicit production target.
+- Customer instructions use Sandbox and Live, the approved public API URLs, and `support@ledig.io`. Examples start in Sandbox and never claim every test action is simulated.
+- Request samples explain how to supply each credential and calculate the signature and timestamp. Response examples use fictional, meaningful values that satisfy the published schema.
+- Schema types, required fields, permissions and payment behaviour remain unchanged by wording or example updates.
 
 ## Style
 
