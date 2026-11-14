@@ -1,0 +1,56 @@
+---
+title: "Limits"
+description: "Distinguish conversion amounts, payout amounts and your account allowance."
+---
+
+A payment can be subject to more than one limit. Passing a conversion limit does not mean its payout is available.
+
+| Limit | Amount to compare | Where to check |
+| --- | --- | --- |
+| Conversion direction | `sourceAmount`, in the source currency | `GET /v1/liquidity/routes` |
+| Payout method or network | Amount sent to the recipient, in the destination currency | `GET /v1/payouts/catalogue` and payment options |
+| Account allowance | The payment's USD-equivalent value | Your dashboard account limits and returned allowance errors |
+
+For example, a USDT-to-NGN conversion can fit the USDT conversion range while its NGN payout exceeds the selected bank method's maximum. That does not mean every NGN payment has the same limit.
+
+## Conversion limits
+
+Call `GET /v1/liquidity/routes` for the selected business. You can filter by `sourceCurrency`, `destinationCurrency`, or both. This read requires `view_rates` and access to quotes.
+
+```http
+GET /v1/liquidity/routes?sourceCurrency=USDT&destinationCurrency=NGN
+```
+
+Each returned direction has `sourceCurrency`, `destinationCurrency`, `minAmount` and `maxAmount`. Compare these bounds with the amount you convert, before fees. The reverse direction has its own limits; do not invert the rate to infer them.
+
+Show `availability` and `status` alongside the bounds. Discovery does not reserve capacity or guarantee execution. Missing rows or failed reads do not mean unlimited conversion. Obtain a fresh [quote](/guides/quotes) before proceeding.
+
+## Payout limits
+
+Use `GET /v1/payouts/catalogue` to display published bands by currency, method and, for crypto, network. Each band's `minimumAmount` and `maximumAmount` apply to the amount sent to the recipient in that currency.
+
+Keep separate bands separate. For example, bands of 10–100 and 200–500 do not permit 150. Do not combine them into a displayed limit of 10–500.
+
+A returned `maximumAmount: null` means that band has no configured payout-route maximum. It does not remove account allowances or other eligibility checks. Missing data must not be displayed as unlimited.
+
+A catalogue band can remain visible while sending is unavailable. Check `payoutAvailability`, then request `GET /v1/quotes/payment-options` for the recipient, destination currency, amount and exact crypto network where applicable. Use the returned `paymentMethodIds` value in the quote.
+
+When you supply the selected `paymentMethodId` to payment options, the optional top-level `availability` can explain a rejection:
+
+| `availability.reason` | Meaning |
+| --- | --- |
+| `payout_amount_out_of_range` | The amount is outside this method or network's bounds. Any returned minimum and maximum use the destination currency. |
+| `payout_amount_unavailable` | This amount is not in a supported band. Do not invent a continuous range. |
+| `network_unavailable` | The selected network is unavailable for this request. |
+| `recipient_incompatible` | The selected recipient does not match this payment option. |
+| `payout_unavailable` | The payout is unavailable; no more specific customer reason is provided. |
+
+## Account allowances
+
+Account allowances are separate from currency and method limits. Your dashboard shows the applicable per-payment maximum, monthly allowance and remaining monthly allowance in USD equivalent. An allowance does not establish that a route is available or that your balance covers the total debit.
+
+`PAYOUT_TRANSACTION_LIMIT_EXCEEDED` can include `requestedUsd` and `limitUsd` in `details`. `PAYOUT_MONTHLY_LIMIT_EXCEEDED` can include `requestedUsd`, `remainingUsd`, `resetsAt` and `timezone: "UTC"`. Use those returned facts when present; do not calculate an authoritative remaining allowance in your client or invent missing amounts.
+
+Where `INSTANT_CONVERSION_LIMIT_EXCEEDED` is returned, its `sourceCurrency` identifies a separate conversion allowance. Its `period`, `requested`, `remaining`, `limit` and UTC reset details must not be presented as a USD payout allowance.
+
+See [Errors and troubleshooting](/errors/errors-and-troubleshooting) for example responses. Quotes and execution recheck the current rules, even if an earlier discovery request succeeded.
