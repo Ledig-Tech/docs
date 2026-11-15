@@ -16,7 +16,7 @@ info:
     email: support@ledig.io
     url: https://docs.ledig.io
 servers:
-  - url: https://sandbox.ledig.io
+  - url: https://api-sandbox.ledig.io
     description: Sandbox
   - url: https://api.ledig.io
     description: Live
@@ -129,7 +129,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/share`;
@@ -243,7 +243,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/share`;
@@ -354,7 +354,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "DELETE";
             const businessId = required("LEDIG_BUSINESS_ID");
             const sessionId = required("LEDIG_SESSION_ID");
@@ -460,7 +460,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/managed-businesses/applications`;
             const pathWithQuery = path;
@@ -590,7 +590,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding`;
@@ -713,7 +713,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/sections`;
@@ -811,7 +811,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const section = "company";
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -928,7 +928,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "PUT";
             const section = "company";
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -1076,7 +1076,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const section = "company";
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -1187,7 +1187,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const section = "company";
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -1324,7 +1324,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/owners`;
@@ -1460,7 +1460,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "DELETE";
             const ownerId = required("LEDIG_OWNER_ID");
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -1575,7 +1575,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const ownerId = required("LEDIG_OWNER_ID");
             const businessId = required("LEDIG_BUSINESS_ID");
@@ -1754,7 +1754,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/documents`;
@@ -1923,7 +1923,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const businessId = required("LEDIG_BUSINESS_ID");
             const documentId = required("LEDIG_DOCUMENT_ID");
@@ -2066,7 +2066,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/managed-businesses/${encodeURIComponent(businessId)}/onboarding/submit`;
@@ -2166,7 +2166,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/managed-businesses`;
             const pathWithQuery = path;
@@ -2222,7 +2222,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/health`;
             const pathWithQuery = path;
@@ -2298,7 +2298,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/currencies`;
             const pathWithQuery = path;
@@ -2375,7 +2375,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/rates`;
             const pathWithQuery = path;
@@ -2500,7 +2500,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/liquidity/routes`;
             const pathWithQuery = path;
@@ -2574,7 +2574,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/balances`;
             const pathWithQuery = path;
@@ -2654,7 +2654,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const currency = "USD";
             const path = `/v1/balances/${encodeURIComponent(currency)}`;
@@ -2761,7 +2761,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/wallets`;
             const pathWithQuery = path;
@@ -2850,7 +2850,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/wallets`;
             const pathWithQuery = path;
@@ -2932,7 +2932,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const id = required("LEDIG_WALLET_ID");
             const path = `/v1/wallets/${encodeURIComponent(id)}`;
@@ -3014,7 +3014,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/wallets/options`;
             const pathWithQuery = path;
@@ -3143,7 +3143,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/wallets/network`;
             const pathWithQuery = path;
@@ -3252,7 +3252,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const requestId = required("LEDIG_REQUEST_ID");
             const path = `/v1/wallets/network/${encodeURIComponent(requestId)}`;
@@ -3334,7 +3334,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/recipient-requirements/crypto-networks`;
             const pathWithQuery = path;
@@ -3426,7 +3426,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const currency = "USD";
             const path = `/v1/virtual-accounts/${encodeURIComponent(currency)}`;
@@ -3597,7 +3597,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/virtual-accounts`;
             const pathWithQuery = path;
@@ -3726,7 +3726,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/recipients`;
             const pathWithQuery = path;
@@ -3859,7 +3859,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/recipients`;
             const pathWithQuery = path;
@@ -3965,7 +3965,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const id = required("LEDIG_RECIPIENT_ID");
             const path = `/v1/recipients/${encodeURIComponent(id)}`;
@@ -4069,7 +4069,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "DELETE";
             const id = required("LEDIG_RECIPIENT_ID");
             const path = `/v1/recipients/${encodeURIComponent(id)}`;
@@ -4163,7 +4163,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const businessId = required("LEDIG_BUSINESS_ID");
             const path = `/v1/ledig-businesses/${encodeURIComponent(businessId)}`;
@@ -4321,7 +4321,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/quotes/payment-options`;
             const query = new URLSearchParams({
@@ -4451,7 +4451,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/payouts/catalogue`;
             const pathWithQuery = path;
@@ -4571,7 +4571,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/payouts/fee-estimate`;
             const pathWithQuery = path;
@@ -4656,7 +4656,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/quotes/payout-fees`;
             const pathWithQuery = path;
@@ -4876,7 +4876,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/quotes`;
             const pathWithQuery = path;
@@ -4986,7 +4986,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/quotes`;
             const pathWithQuery = path;
@@ -5088,7 +5088,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const id = required("LEDIG_QUOTE_ID");
             const path = `/v1/quotes/${encodeURIComponent(id)}`;
@@ -5291,7 +5291,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "POST";
             const path = `/v1/transfers`;
             const pathWithQuery = path;
@@ -5440,7 +5440,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const id = required("LEDIG_TRANSFER_ID");
             const path = `/v1/transfers/${encodeURIComponent(id)}`;
@@ -5606,7 +5606,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const path = `/v1/transactions`;
             const pathWithQuery = path;
@@ -5700,7 +5700,7 @@ paths:
               return value;
             }
 
-            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://sandbox.ledig.io";
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
             const method = "GET";
             const id = required("LEDIG_TRANSACTION_ID");
             const path = `/v1/transactions/${encodeURIComponent(id)}`;
