@@ -34,7 +34,7 @@ Successful responses usually contain `status: "success"` and `data`. Check each 
 | `413` / `414` | Request body or URL too large | Reduce the size of the request. |
 | `422` | `RATE_ROUTE_AMOUNT_OUT_OF_RANGE` | Use a source amount within the returned conversion limits. |
 | `422` | Per-payment or monthly payout limit exceeded | Check your business's [limits](/guides/limits). |
-| `423` | `COMPLIANCE_REVIEW_REQUIRED` | The operation needs review. Contact support if you need an update. |
+| `423` | `COMPLIANCE_REVIEW_REQUIRED` | The operation or recipient needs review. Do not retry automatically or create a replacement recipient. Contact support if you need an update. |
 | `429` | `RATE_LIMITED` | Slow down your requests and follow `Retry-After` when returned. |
 | `500` / `503` | Temporary or unexpected failure | Wait before retrying reads. For writes, follow the [retry guide](/guides/idempotency). |
 | `501` | `NOT_IMPLEMENTED` | The requested operation is not available. |
@@ -54,6 +54,8 @@ A missing or invalid field usually returns `400 BAD_REQUEST`. For example, a tra
 ```
 
 Add the missing field and check the rest of your request. A message such as `payOut.recipientId is required.` points to `recipientId` inside `payOut`.
+
+For `POST /v1/wallets`, `400 BAD_REQUEST` with `details.reason: "unsupported_asset_network"` means the asset and network pair is not supported for a new deposit address. Select a pair from `GET /v1/wallets/options` before trying again. `503 PROVIDER_UNAVAILABLE` means setup is temporarily unavailable; follow the retry guide with the original key and body.
 
 <span id="quote-error-examples" />
 

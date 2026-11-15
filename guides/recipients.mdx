@@ -80,7 +80,18 @@ Read `GET /v1/recipients/{id}` after creating the recipient:
 
 Approval may happen automatically, so use the returned status. Check `active` and `usableForPayout` before offering the recipient as a payment destination.
 
-Payment options and quotes confirm whether you can send to the recipient for your chosen currency and amount.
+`usableForPayout` is a selection hint, not permission to send. Use `payoutReadiness` to explain the saved recipient state:
+
+| `payoutReadiness` | Meaning |
+| --- | --- |
+| `unavailable` | The recipient cannot currently be used. |
+| `review_pending` | The recipient's review is pending. |
+| `review_refresh_required` | The saved destination needs a new review. |
+| `checks_required` | Current quote and payment checks are still required. |
+
+Reading a recipient does not run new payment checks. None of these states guarantees that a payment will succeed. Payment options and quotes check your chosen currency, amount and destination; sending checks eligibility again.
+
+If payment options return `423 COMPLIANCE_REVIEW_REQUIRED`, keep the recipient and wait for review. Do not automatically retry or create a replacement to get around the review. Contact [support@ledig.io](mailto:support@ledig.io) when you need an update.
 
 ## Use or remove a recipient
 

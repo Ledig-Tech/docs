@@ -30,6 +30,10 @@ For a payment to a Ledig business, use `businessId` instead of `recipientId`. Do
 
 Select a value from `paymentMethodIds` and use it as `payOut.paymentMethodId`. The option's own `id` is a different value. An empty list means no payment method is available for that request.
 
+External payout options include `amountBands`. Their minimum and maximum are outer bounds; amounts in gaps remain unsupported. See [Limits](/guides/limits#payout-limits).
+
+Payment options are read-only and do not approve a payment. `423 COMPLIANCE_REVIEW_REQUIRED` means the recipient needs review; keep the recipient and wait instead of retrying automatically. `404 NOT_FOUND` means the requested recipient was not found.
+
 If the selected option has `invoiceRequired: true`, upload the invoice through your dashboard or the upload process agreed for your integration, then include `payOut.invoiceDocumentId`. Contact [support@ledig.io](mailto:support@ledig.io) if you need help with invoice uploads. `payOut.transferPurpose` is optional and does not replace a required invoice.
 
 To discover receiving methods instead, use `type=deposit`. Receiving funds follows the [funding flow](/guides/funding); it does not use a deposit quote.
@@ -70,7 +74,7 @@ Content-Type: application/json
 | `sourceCurrency` | The currency you are paying with. |
 | `destinationCurrency` | The currency you want to receive or send. |
 | `sourceAmount` | The amount to convert or pay, before fees. |
-| `reference` | Your optional reference, up to 64 characters. |
+| `reference` | Your optional reference, up to 64 characters. Reusing it recovers the original quote. |
 | `payOut` | Where to send the funds. Required for same-currency payments. |
 
 For a conversion that stays in your Ledig balance, omit `payOut`. For an external payment, use `payOut.type: "fiat"` or `"crypto"`, an approved `recipientId` and an available `paymentMethodId`. Include `chain` for crypto when required by the destination.
@@ -126,7 +130,9 @@ Do not send `recipientId` or `chain` for this payment. You do not need a saved r
 
 Use the quote before `expiresAt`. Read it with `GET /v1/quotes/{id}`, or list quotes with `GET /v1/quotes` and [cursor pagination](/guides/pagination).
 
-Each quote can create one transfer. If an unused quote expires, request a new quote. If you already submitted a transfer but did not receive the response, follow [transfer retries](/guides/transfers#retries) using the original identifiers before requesting another quote.
+Each quote can create one transfer. Both new and replayed quote responses use HTTP `201`. Top-level `replayed: false` means a new quote; `true` means the original quote was returned for the same reference without refreshing its expiry. A replay may return an accepted or expired quote.
+
+If an unused quote expires, request a new quote with a fresh reference. If you already submitted a transfer but did not receive the response, follow [transfer retries](/guides/transfers#retries) using the original identifiers before requesting another quote.
 
 ## Handle quote failures
 

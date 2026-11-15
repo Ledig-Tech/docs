@@ -39,6 +39,22 @@ In the example above, you have **250 USDT available** and **25 USDT held**. The 
 
 Amounts are returned as decimal strings. Use a decimal library for calculations so you do not lose precision. Read each currency's decimal precision from `GET /v1/currencies`.
 
+## Read a USD estimate and payout allowance
+
+Call `GET /v1/balances/summary` with `balances:read` to see estimated USD values and `payoutAllowance`. This response must not be cached.
+
+The exact balances remain decimal strings in their original currencies. USD values are indicative estimates, not a quote or a promise that a payment will be accepted.
+
+| Field | Meaning |
+| --- | --- |
+| `balanceScope: "profile"` | Estimates cover the selected profile's balances. |
+| `valuationStatus: "complete"` | Every returned balance has a USD valuation. |
+| `valuationStatus: "partial"` | Some balances could not be valued. Null totals are unavailable, not zero. |
+| `valuedSubtotalUsd` | Estimated totals for the balances that could be valued. |
+| `payoutAllowance` | The business's per-payment and monthly USD limits, usage, reservations, remaining allowance and reset time. |
+
+Profiles belonging to the same business share its payout allowance. A null limit means unlimited; zero prevents new positive payouts when `enforcementEnabled` is true. Check `enforcementEnabled` before presenting those limits as active. See [Limits](/guides/limits#account-limits) for payment checks and errors.
+
 ## Follow balance changes
 
 Use [Transactions](/guides/transactions) to see deposits, conversions and payments. A deposit may need processing before it becomes available. A failed payment may also need time for held funds to be released or deducted funds to be returned.
