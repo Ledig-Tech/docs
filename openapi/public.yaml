@@ -2594,6 +2594,349 @@ paths:
             const result = await response.json();
             // Use result in your application; do not log credentials or upload links.
             console.log(response.status);
+  /v1/balances/summary:
+    get:
+      tags:
+        - Balances
+      operationId: getEstimatedUsdBalanceSummary
+      summary: View your USD balance estimate and payout allowance
+      description: See estimated USD balances and your business's payout allowance.
+      security:
+        - BearerAuth: []
+        - LedigApiKey: []
+          LedigTimestamp: []
+          LedigSignature: []
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: x-ledig-business-id
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$
+          description: The business whose balances you are authorised to view.
+        - name: x-ledig-acting-business-id
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$
+          description: Your institution when acting for a managed business. It must match your credentials; use HMAC v2.
+        - name: x-ledig-profile-id
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$
+          description: The profile whose balances you are authorised to view. Profiles in the same business share its payout allowance.
+      responses:
+        "200":
+          description: Your estimated USD balances and current payout allowance.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - data
+                properties:
+                  status:
+                    type: string
+                    const: success
+                  data:
+                    $ref: "#/components/schemas/EstimatedUsdBalanceSummary"
+              example:
+                status: success
+                data:
+                  profileId: profile_example
+                  valuationCurrency: USD
+                  estimated: true
+                  asOf: 2026-10-26T12:00:00.000Z
+                  balanceScope: profile
+                  valuationStatus: complete
+                  estimatedTotalUsd: "1000.00"
+                  estimatedAvailableUsd: "900.00"
+                  estimatedReservedUsd: "100.00"
+                  valuedSubtotalUsd:
+                    total: "1000.00"
+                    available: "900.00"
+                    reserved: "100.00"
+                  balances:
+                    - currency: NGN
+                      available: "1350000"
+                      reserved: "150000"
+                      total: "1500000"
+                      estimatedTotalUsd: "1000.00"
+                      estimatedAvailableUsd: "900.00"
+                      estimatedReservedUsd: "100.00"
+                      valuationStatus: available
+                      rate:
+                        baseCurrency: USD
+                        quoteCurrency: NGN
+                        bid: "1500"
+                        asOf: 2026-10-26T11:59:00.000Z
+                        expiresAt: 2026-10-26T12:04:00.000Z
+                  payoutAllowance:
+                    scope: parent_business
+                    segment: standard
+                    transactionLimitUsd: "10000"
+                    monthlyLimitUsd: "100000"
+                    usedUsd: "20000"
+                    reservedUsd: "5000"
+                    remainingUsd: "75000"
+                    periodStart: 2026-10-01T00:00:00.000Z
+                    resetsAt: 2026-11-01T00:00:00.000Z
+                    timezone: UTC
+                    enforcementEnabled: false
+        "400":
+          description: Invalid request, unknown query parameter or malformed identifier.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: BAD_REQUEST
+                message: Malformed request, unknown query parameter, invalid identifier, amount, version or justification.
+        "401":
+          description: Valid authentication is required.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: UNAUTHORIZED
+                message: Valid authentication is required.
+        "403":
+          description: Your credentials lack balances:read, balance access or permission to view this business or profile.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: FORBIDDEN
+                message: Missing balances:read permission, balances service access or ownership of the selected business/profile.
+        "404":
+          description: The selected business or profile was not found.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: NOT_FOUND
+                message: The selected profile or parent business was not found.
+        "429":
+          description: Request allowance exhausted.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: RATE_LIMITED
+                message: Request allowance exhausted.
+        "500":
+          description: The balance summary could not be retrieved.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: INTERNAL_ERROR
+                message: An unexpected authoritative-store operation failed.
+        "503":
+          description: The balance summary is temporarily unavailable. RATE_AUTHORITATIVE_STORE_UNAVAILABLE means the indicative rates could not be retrieved; an outage does not mean your balance is zero.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - code
+                  - message
+                properties:
+                  status:
+                    type: string
+                    const: error
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: error
+                code: PROVIDER_UNAVAILABLE
+                message: An authoritative dependency is unavailable. No successful empty fallback is returned. Indicative rate-store failures use RATE_AUTHORITATIVE_STORE_UNAVAILABLE.
+      x-scope: balances:read
+      x-mint:
+        content: |-
+          **Required scope:** `balances:read`
+
+          Requires balances:read. Exact balances remain in their original currencies; USD values are indicative estimates, not a quote or permission to pay. valuationStatus=partial means some balances could not be valued: null totals are unavailable, not zero, and valuedSubtotalUsd covers only valued balances. Estimates cover the selected profile. payoutAllowance is shared by profiles belonging to the same business; it shows the per-payment cap, monthly usage, reservations, remaining allowance and reset time. Null limits mean unlimited; zero prevents new positive payouts when enforcementEnabled is true. enforcementEnabled tells you whether these USD limits are currently applied. Payment creation checks current balance, allowance and eligibility again. Responses use Cache-Control: private, no-store.
+      x-codeSamples:
+        - lang: javascript
+          label: Node.js
+          source: |-
+            import { createHmac } from "node:crypto";
+
+            // Node.js 18+. Set credentials and resource values on your server.
+            function required(name) {
+              const value = process.env[name];
+              if (!value) throw new Error(`Set ${name} before running this example.`);
+              return value;
+            }
+
+            const baseUrl = process.env.LEDIG_API_BASE_URL ?? "https://api-sandbox.ledig.io";
+            const method = "GET";
+            const path = `/v1/balances/summary`;
+            const pathWithQuery = path;
+            const rawBody = "";
+            const headers = { "Accept": "application/json" };
+            const timestamp = Math.floor(Date.now() / 1000).toString();
+            const payload = `${timestamp}.${method}.${pathWithQuery}.${rawBody}`;
+            headers["x-ledig-key"] = required("LEDIG_API_KEY");
+            headers["x-ledig-timestamp"] = timestamp;
+            headers["x-ledig-signature"] = "v1=" + createHmac("sha256", required("LEDIG_API_SECRET"))
+              .update(payload).digest("base64");
+
+            const response = await fetch(`${baseUrl}${pathWithQuery}`, {
+              method,
+              headers,
+            });
+            const result = await response.json();
+            // Use result in your application; do not log credentials or upload links.
+            console.log(response.status);
   /v1/balances/{currency}:
     parameters:
       - in: path
@@ -2735,19 +3078,39 @@ paths:
                   createdAt: 2026-01-15T10:00:00.000Z
                   updatedAt: 2026-01-15T10:00:00.000Z
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Invalid wallet request or unsupported deposit asset/network.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: error
+                code: BAD_REQUEST
+                message: This asset is not supported for deposits on this network.
+                details:
+                  reason: unsupported_asset_network
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "503":
+          description: Deposit wallet creation is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: error
+                code: PROVIDER_UNAVAILABLE
+                message: Wallet creation is temporarily unavailable.
       x-scope: wallets:write
       x-mint:
         content: |-
           **Required scope:** `wallets:write`
 
-          Send an Idempotency-Key. Retrying the same request with the same key returns the same wallet; reusing the key with different inputs returns 409. If the response includes a memo or tag, include it with every deposit. Funds received at the address belong to your business balance; the address does not have a separate balance.
+          Send an Idempotency-Key. Retrying the same request with the same key returns the same wallet; reusing the key with different inputs returns 409. Choose the asset and network from GET /v1/wallets/options. A new request for an unsupported pair returns 400 BAD_REQUEST with details.reason=unsupported_asset_network; correct the pair instead of retrying it unchanged. HTTP 503 PROVIDER_UNAVAILABLE means setup is temporarily unavailable; retry with the same key and body. If the response includes a memo or tag, include it with every deposit. Funds received at the address belong to your business balance; the address does not have a separate balance.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -3696,7 +4059,8 @@ paths:
                   createdAt: 2026-01-15T10:00:00.000Z
                   updatedAt: 2026-01-15T10:00:00.000Z
                   reviewStatus: pending
-                  usableForPayout: false
+                  usableForPayout: true
+                  payoutReadiness: review_pending
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3833,6 +4197,7 @@ paths:
                     updatedAt: 2026-01-15T10:00:00.000Z
                     reviewStatus: approved
                     usableForPayout: true
+                    payoutReadiness: checks_required
                 pagination: {}
         "401":
           $ref: "#/components/responses/Unauthorized"
@@ -3938,6 +4303,7 @@ paths:
                   updatedAt: 2026-01-15T10:00:00.000Z
                   reviewStatus: approved
                   usableForPayout: true
+                  payoutReadiness: checks_required
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3951,7 +4317,7 @@ paths:
         content: |-
           **Required scope:** `recipient_read`
 
-          Check reviewStatus to confirm that a recipient is approved before creating a quote that pays them. Payment availability is checked again when you send.
+          payoutReadiness describes the recipient's saved state: unavailable means it cannot currently be used; review_pending means review is pending; review_refresh_required means a new review is needed; checks_required means quote and payment checks are still required. usableForPayout is a selection hint and does not mean approval to send. Reading this endpoint does not run new payment checks. Create a quote and check its result before sending.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -4042,6 +4408,7 @@ paths:
                   updatedAt: 2026-01-15T10:00:00.000Z
                   reviewStatus: approved
                   usableForPayout: false
+                  payoutReadiness: unavailable
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -4282,6 +4649,9 @@ paths:
                     maximumFee: "2.00"
                     minimumAmount: "10.00"
                     maximumAmount: "10000.00"
+                    amountBands:
+                      - minimumAmount: "10.00"
+                        maximumAmount: "10000.00"
                     supportConversion: true
                     invoiceRequired: false
                     deliveryOptions:
@@ -4300,6 +4670,18 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "423":
+          description: "COMPLIANCE_REVIEW_REQUIRED: this payment needs review before it can proceed. Check its status or contact support@ledig.io."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: error
+                code: COMPLIANCE_REVIEW_REQUIRED
+                message: This action requires a review before it can continue.
         "429":
           $ref: "#/components/responses/RateLimited"
       x-scope: quotes:read
@@ -4307,7 +4689,7 @@ paths:
         content: |-
           **Required scope:** `quotes:read`
 
-          Use type=withdraw for payouts and type=deposit for receiving options. For a payout, provide amount in the destination currency to show methods that cover it. Use the returned deliveryOptions to choose a method and pass its values unchanged in the quote. Limits apply to the selected method or network, not to every payment in that currency. GET /v1/payouts/catalogue lists the supported amount bands; keep separate bands separate and do not fill gaps. Missing options or limits do not mean unlimited payments.
+          Use type=withdraw for payouts and type=deposit for receiving options. For a payout, provide amount in the destination currency to show methods that cover it. Use the returned deliveryOptions to choose a method and pass its values unchanged in the quote. External payout options include amountBands; minimumAmount and maximumAmount are their outer bounds, so keep gaps between bands unsupported. Limits apply to the selected method or network, not to every payment in that currency. GET /v1/payouts/catalogue lists fee bands separately. Missing options or limits do not mean unlimited payments. Discovery does not approve a payment. HTTP 423 COMPLIANCE_REVIEW_REQUIRED means the destination needs review; do not retry automatically or create a replacement recipient. HTTP 404 means the requested recipient was not found.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -4696,7 +5078,7 @@ paths:
               reference: invoice-example-001
       responses:
         "201":
-          description: Quote created.
+          description: Quote created or the original quote recovered. replayed distinguishes an existing result.
           content:
             application/json:
               schema:
@@ -4705,7 +5087,11 @@ paths:
                   - type: object
                     required:
                       - data
+                      - replayed
                     properties:
+                      replayed:
+                        type: boolean
+                        description: True when the original resource is returned without creating another operation.
                       data:
                         $ref: "#/components/schemas/ClientQuote"
               example:
@@ -4740,6 +5126,7 @@ paths:
                       type: fixed
                   expiresAt: 2026-01-15T10:05:00.000Z
                   status: pending
+                replayed: false
         "400":
           description: Invalid request, too many decimal places or an unsupported mobile money network.
           content:
@@ -4862,7 +5249,7 @@ paths:
         content: |-
           **Required scope:** `quotes:write`
 
-          Send sourceAmount; Ledig calculates destinationAmount. For a same-currency payment, include payOut. payIn with temporary_bank_account is not supported and returns 501. A quote can be used once through POST /v1/transfers. Check conversion limits in GET /v1/liquidity/routes, measured in the source currency, and payout limits in GET /v1/payouts/catalogue, measured in the destination currency. Quote creation checks the amount, current availability and your source balance including fees. Handle 404 RATE_NOT_FOUND, 422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE and 409 INSUFFICIENT_BALANCE separately. Your business's per-payment and monthly payout allowances are separate limits measured in USD equivalent and are checked when you create the transfer.
+          Send sourceAmount; Ledig calculates destinationAmount. For a same-currency payment, include payOut. payIn with temporary_bank_account is not supported and returns 501. A quote can be used once through POST /v1/transfers. Check conversion limits in GET /v1/liquidity/routes, measured in the source currency, and payout limits in GET /v1/payouts/catalogue, measured in the destination currency. Quote creation checks the amount, current availability and your source balance including fees. Handle 404 RATE_NOT_FOUND, 422 RATE_ROUTE_AMOUNT_OUT_OF_RANGE and 409 INSUFFICIENT_BALANCE separately. Your business's per-payment and monthly payout allowances are separate limits measured in USD equivalent and are checked when you create the transfer. Both new and replayed responses use HTTP 201: replayed=false means a new quote, and replayed=true returns the original quote for the same reference without renewing its expiry. An expired or accepted quote may be returned by a replay; use a fresh reference when you deliberately request a fresh quote. This endpoint does not use Idempotency-Key.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -5136,7 +5523,7 @@ paths:
               reference: invoice-example-001
       responses:
         "201":
-          description: Transfer accepted.
+          description: Transfer created or the original transfer recovered. Acceptance does not mean payment completion.
           content:
             application/json:
               schema:
@@ -5145,7 +5532,11 @@ paths:
                   - type: object
                     required:
                       - data
+                      - replayed
                     properties:
+                      replayed:
+                        type: boolean
+                        description: True when the original resource is returned without creating another operation.
                       data:
                         $ref: "#/components/schemas/ClientTransfer"
               example:
@@ -5204,6 +5595,7 @@ paths:
                         currency: USDT
                         amount: "0.50"
                         state: reserved
+                replayed: false
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5221,7 +5613,7 @@ paths:
                 code: CONFLICT
                 message: The request conflicts with the current state of this resource.
         "422":
-          description: The payout exceeds your business's per-payment or monthly allowance, measured in USD equivalent. The payment is not sent and the quote is not used. Check the error details for the limit, remaining allowance and reset time where applicable.
+          description: The payout exceeds your business's per-payment or monthly allowance, measured in USD equivalent. The payment is not sent and the quote is not used. Read GET /v1/balances/summary and the error details for the limit, remaining allowance and reset time where applicable.
           content:
             application/json:
               schema:
@@ -5277,7 +5669,7 @@ paths:
         content: |-
           **Required scope:** `transfers:write`
 
-          For a new transfer, use a pending, unexpired quote belonging to your business and keep enough available funds to cover it. This endpoint does not use Idempotency-Key. Save the quoteId and any reference you sent. After a timeout, retry with those same values and a fresh signature and timestamp. Once your credentials and business access are checked, a retry matching an existing quoteId or reference returns the original transfer. A reused reference with a new quoteId returns the original transfer and leaves the new quote unused. A reused quoteId with a new reference returns the original transfer without saving the new reference. If quoteId and reference identify different existing transfers, the response is 409 IDEMPOTENCY_CONFLICT. Concurrent retries do not create another transfer. A new quoteId with an unused reference, or without a reference, starts a new request.
+          For a new transfer, use a pending, unexpired quote belonging to your business and keep enough available funds to cover it. This endpoint does not use Idempotency-Key. Save the quoteId and any reference you sent. After a timeout, retry with those same values and a fresh signature and timestamp. Once your credentials and business access are checked, a retry matching an existing quoteId or reference returns the original transfer. A reused reference with a new quoteId returns the original transfer and leaves the new quote unused. A reused quoteId with a new reference returns the original transfer without saving the new reference. If quoteId and reference identify different existing transfers, the response is 409 IDEMPOTENCY_CONFLICT. Concurrent retries do not create another transfer. A new quoteId with an unused reference, or without a reference, starts a new request. HTTP 201 means the request was accepted, not that funds were delivered. replayed=false identifies a new transfer; replayed=true identifies the original transfer returned without another payment. Follow GET /v1/transfers/{id} for the current outcome.
       x-codeSamples:
         - lang: javascript
           label: Node.js
@@ -6176,6 +6568,7 @@ components:
                   type: string
                   enum:
                     - current_password_incorrect
+                    - unsupported_asset_network
                     - recipient_unavailable
                     - recipient_incompatible
                     - payout_method_unavailable
@@ -6508,6 +6901,87 @@ components:
           type: string
         reserved:
           type: string
+    EstimatedUsdBalanceSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - profileId
+        - valuationCurrency
+        - estimated
+        - asOf
+        - balanceScope
+        - valuationStatus
+        - estimatedTotalUsd
+        - estimatedAvailableUsd
+        - estimatedReservedUsd
+        - valuedSubtotalUsd
+        - balances
+        - payoutAllowance
+      properties:
+        profileId:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$
+        valuationCurrency:
+          type: string
+          const: USD
+        estimated:
+          type: boolean
+          const: true
+        asOf:
+          type: string
+          format: date-time
+        balanceScope:
+          type: string
+          const: profile
+        valuationStatus:
+          type: string
+          enum:
+            - complete
+            - partial
+        estimatedTotalUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        estimatedAvailableUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        estimatedReservedUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        valuedSubtotalUsd:
+          type: object
+          additionalProperties: false
+          required:
+            - total
+            - available
+            - reserved
+          properties:
+            total:
+              type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value for balances that could be valued, rounded to cents.
+            available:
+              type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value for balances that could be valued, rounded to cents.
+            reserved:
+              type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value for balances that could be valued, rounded to cents.
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstimatedUsdCurrencyBalance"
+        payoutAllowance:
+          $ref: "#/components/schemas/CustomerPayoutUsdAllowance"
     ClientWallet:
       type: object
       additionalProperties: false
@@ -6745,6 +7219,7 @@ components:
         - updatedAt
         - reviewStatus
         - usableForPayout
+        - payoutReadiness
       properties:
         id:
           type: string
@@ -6851,7 +7326,15 @@ components:
             - revoked
         usableForPayout:
           type: boolean
-          description: Whether this destination can currently be selected for a payout. Balance and payment checks run again when you send.
+          description: Whether this destination can currently be selected for a payout. This is a selection hint, not approval to send; read payoutReadiness and check the quote and transfer results.
+        payoutReadiness:
+          type: string
+          enum:
+            - unavailable
+            - review_refresh_required
+            - review_pending
+            - checks_required
+          description: "The recipient's saved state: unavailable, review_pending, review_refresh_required or checks_required. checks_required still needs current quote and payment checks; none of these values guarantees a payment can proceed."
     CursorPage:
       allOf:
         - $ref: "#/components/schemas/Success"
@@ -6904,6 +7387,11 @@ components:
           type:
             - string
             - "null"
+        amountBands:
+          type: array
+          description: Supported payout amount bands when the requested amount is outside the limits or falls in a gap. Other availability reasons may omit this field.
+          items:
+            $ref: "#/components/schemas/PayoutAmountBand"
       description: Availability of the selected payout method. Amount limits use the destination currency; conversion limits are separate. Availability is checked again when you send.
     PaymentOption:
       type: object
@@ -6943,7 +7431,12 @@ components:
           type:
             - string
             - "null"
-          description: The maximum payout amount. Null means this crypto option has no maximum and its minimum must be zero. Bank and mobile money options have a maximum.
+          description: The outer maximum payout amount. For external payouts, check amountBands because intermediate gaps remain unsupported. Null means no maximum.
+        amountBands:
+          type: array
+          description: Supported amount ranges for external payouts in the destination currency. Keep gaps between ranges unsupported. Omitted for deposit and Ledig network options.
+          items:
+            $ref: "#/components/schemas/PayoutAmountBand"
         supportConversion:
           type: boolean
         executionMode:
@@ -7659,6 +8152,127 @@ components:
             - string
             - "null"
           format: date-time
+    EstimatedUsdCurrencyBalance:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - available
+        - reserved
+        - total
+        - estimatedTotalUsd
+        - estimatedAvailableUsd
+        - estimatedReservedUsd
+        - valuationStatus
+        - rate
+      properties:
+        currency:
+          type: string
+          pattern: ^[A-Z0-9]{2,12}$
+        available:
+          type: string
+          pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,18})?$
+          description: Exact balance decimal string. Negative balances remain negative in the estimate.
+        reserved:
+          type: string
+          pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,18})?$
+          description: Exact balance decimal string. Negative balances remain negative in the estimate.
+        total:
+          type: string
+          pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,18})?$
+          description: Exact balance decimal string. Negative balances remain negative in the estimate.
+        estimatedTotalUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        estimatedAvailableUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        estimatedReservedUsd:
+          anyOf:
+            - type: string
+              pattern: ^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Signed estimated USD value, rounded to cents.
+            - type: "null"
+        valuationStatus:
+          type: string
+          enum:
+            - available
+            - missing
+            - stale
+            - invalid
+            - ambiguous
+        rate:
+          anyOf:
+            - $ref: "#/components/schemas/EstimatedUsdRate"
+            - type: "null"
+    CustomerPayoutUsdAllowance:
+      type: object
+      additionalProperties: false
+      required:
+        - scope
+        - segment
+        - transactionLimitUsd
+        - monthlyLimitUsd
+        - usedUsd
+        - reservedUsd
+        - remainingUsd
+        - periodStart
+        - resetsAt
+        - timezone
+        - enforcementEnabled
+      properties:
+        scope:
+          type: string
+          const: parent_business
+        segment:
+          type: string
+          enum:
+            - standard
+            - institutional
+        transactionLimitUsd:
+          anyOf:
+            - type: string
+              pattern: ^(?:0|[1-9]\d{0,27})(?:\.\d{1,2})?$
+            - type: "null"
+          description: The USD principal cap per payment. Null means unlimited; zero prevents new positive payouts when enforcementEnabled is true.
+        monthlyLimitUsd:
+          anyOf:
+            - type: string
+              pattern: ^(?:0|[1-9]\d{0,27})(?:\.\d{1,2})?$
+            - type: "null"
+          description: The monthly USD principal cap. Null means unlimited; zero prevents new positive payouts when enforcementEnabled is true.
+        usedUsd:
+          type: string
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+          description: Exact nonnegative USD decimal string. Use decimal arithmetic for financial calculations.
+        reservedUsd:
+          type: string
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+          description: Exact nonnegative USD decimal string. Use decimal arithmetic for financial calculations.
+        remainingUsd:
+          anyOf:
+            - type: string
+              pattern: ^(?:0|[1-9]\d*)(?:\.\d{1,2})?$
+              description: Exact nonnegative USD decimal string. Use decimal arithmetic for financial calculations.
+            - type: "null"
+        periodStart:
+          type: string
+          format: date-time
+        resetsAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          const: UTC
+        enforcementEnabled:
+          type: boolean
+          description: Whether these USD payout limits are currently applied when creating a payment.
     CryptoNetworkOption:
       type: object
       additionalProperties: false
@@ -7777,6 +8391,19 @@ components:
               type:
                 - string
                 - "null"
+    PayoutAmountBand:
+      type: object
+      additionalProperties: false
+      required:
+        - minimumAmount
+        - maximumAmount
+      properties:
+        minimumAmount:
+          type: string
+        maximumAmount:
+          type:
+            - string
+            - "null"
     PayoutFeeCatalogueRow:
       type: object
       additionalProperties: false
@@ -8280,6 +8907,34 @@ components:
               items:
                 type: string
               description: References for settlement documents available for you to download.
+    EstimatedUsdRate:
+      type: object
+      additionalProperties: false
+      required:
+        - baseCurrency
+        - quoteCurrency
+        - bid
+        - asOf
+        - expiresAt
+      properties:
+        baseCurrency:
+          type: string
+          const: USD
+        quoteCurrency:
+          type: string
+          pattern: ^[A-Z0-9]{2,12}$
+        bid:
+          type: string
+          pattern: ^(?!0(?:\.0+)?$)(?:0|[1-9]\d{0,39})(?:\.\d{1,18})?$
+          description: An indicative bid for the returned baseCurrency/quoteCurrency pair, with up to 18 decimal places. Create a quote for an executable rate.
+        asOf:
+          type: string
+          format: date-time
+        expiresAt:
+          type:
+            - string
+            - "null"
+          format: date-time
     PayoutCustomerFeeTermsAvailable:
       type: object
       additionalProperties: false
