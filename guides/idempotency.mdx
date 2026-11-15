@@ -15,7 +15,7 @@ Idempotency means repeating the same request returns the original result instead
 | `POST /v1/wallets` | Reuse the same `Idempotency-Key` and request body. |
 | `POST /v1/wallets/network` | Reuse the same key and body until you have a `requestId`. Then check that request's status. |
 | `POST /v1/transfers` | Reuse the original quote ID and any reference you supplied. This endpoint does not use an `Idempotency-Key` header. |
-| `POST /v1/quotes` | A repeat can create another quote. Check for an existing transfer before replacing a quote used in a payment request. |
+| `POST /v1/quotes` | Reuse the original `reference` to recover that quote. Without a reference, a repeat can create another quote. This endpoint does not use `Idempotency-Key`. |
 | `POST /v1/managed-businesses/applications` | Reuse the same `Idempotency-Key` and business name. |
 
 For other write requests, check the endpoint instructions before retrying. Use a fresh timestamp and signature on every attempt, even when the body and retry key stay the same.
@@ -37,6 +37,12 @@ Send that key in the `Idempotency-Key` header. If you retry with the same key an
 
 For receiving accounts, `intent: additional` requests another account; it does not recover an earlier request. A pending request may need more time or review before it completes.
 
+## Quote replay
+
+Save your quote's `reference`, ID and expiry. Repeating the same reference for your business returns the original quote with HTTP `201` and top-level `replayed: true`. It does not refresh its price, status or expiry. A newly created quote returns `replayed: false`.
+
+An accepted or expired quote can still be returned by a replay. Use a fresh reference when you deliberately need a fresh quote. If you have already submitted a transfer with the original quote, resolve that payment's outcome first.
+
 ## Transfer replay
 
 Keep the original `quoteId` and any `reference` after a transfer request times out. Retrying them for the same business recovers the original transfer.
@@ -46,6 +52,8 @@ Keep the original `quoteId` and any `reference` after a transfer request times o
 - If the quote and reference point to two different transfers, Ledig returns `409 IDEMPOTENCY_CONFLICT`.
 
 Read the known transfer to confirm its status before creating another payment. See [Transfers](/guides/transfers#retries) for more examples.
+
+Both new and replayed transfer responses use HTTP `201`. Top-level `replayed: true` means the original transfer was returned without creating another payment; `false` means a new transfer was created. HTTP acceptance does not confirm delivery.
 
 ## When to retry or stop
 
