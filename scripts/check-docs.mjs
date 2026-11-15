@@ -46,7 +46,7 @@ const CUSTOMER_FORBIDDEN = [
 ];
 const GENERIC_EXAMPLE = /^(?:<?(?:string|number|integer|boolean|object|array)>?|<api-key>)$/i;
 const INTERNAL_EXAMPLE_FIELDS = new Set(["destinationFingerprint", "uniqueHash", "delegatedRequestAuditId", "providerReference", "providerFee", "ledgerLine"]);
-const APPROVED_SERVERS = ["https://sandbox.ledig.io", "https://api.ledig.io"];
+const APPROVED_SERVERS = ["https://api-sandbox.ledig.io", "https://api.ledig.io"];
 
 function finding(file, rule, line = 1) {
   return { file, line, rule };

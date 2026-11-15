@@ -22,7 +22,7 @@ A reader should be able to answer these questions quickly:
 
 | Item | Value |
 | --- | --- |
-| Sandbox API | `https://sandbox.ledig.io` |
+| Sandbox API | `https://api-sandbox.ledig.io` |
 | Live API | `https://api.ledig.io` |
 | API support | `support@ledig.io` |
 | Payments documentation | This repository |

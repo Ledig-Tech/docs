@@ -13,7 +13,7 @@ Some endpoints also accept a bearer token, as shown in the API reference. Use on
 | -------- | ---------------------------------------------------------------------------------------------------------- |
 | API key  | Send in `x-ledig-key`. Keep it in server-side configuration.                                               |
 | Secret   | Use it to calculate the signature. Never send it as a header.                                              |
-| API URL | Use `https://sandbox.ledig.io` for Sandbox or `https://api.ledig.io` for Live. |
+| API URL | Use `https://api-sandbox.ledig.io` for Sandbox or `https://api.ledig.io` for Live. |
 
 Your business administrator creates API keys in the dashboard. A business can have up to ten active keys, each expiring within six months. Save the secret when creating or rotating a key; it is shown only once. Rotation replaces the old secret immediately, and revocation stops the key from working.
 
@@ -49,7 +49,7 @@ Calculate the digest with your secret and standard base64 encoding. Timestamps m
 
 ## Examples
 
-Set `LEDIG_API_BASE_URL` to `https://sandbox.ledig.io` to start in Sandbox. Load `LEDIG_API_KEY` and `LEDIG_API_SECRET` from your server's secret configuration.
+Set `LEDIG_API_BASE_URL` to `https://api-sandbox.ledig.io` to start in Sandbox. Load `LEDIG_API_KEY` and `LEDIG_API_SECRET` from your server's secret configuration.
 
 These examples read your USD balance. The signature and timestamp are calculated for the request; they are not API keys.
 

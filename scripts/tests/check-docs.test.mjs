@@ -14,14 +14,14 @@ info:
   contact:
     email: support@ledig.io
 servers:
-  - url: https://sandbox.ledig.io
+  - url: https://api-sandbox.ledig.io
   - url: https://api.ledig.io
 paths:
   /v1/example:
     get:
       x-codeSamples:
         - lang: JavaScript
-          source: "const response = await fetch('https://sandbox.ledig.io/v1/example');"
+          source: "const response = await fetch('https://api-sandbox.ledig.io/v1/example');"
       responses:
         '200':
           description: Synthetic response
@@ -171,8 +171,17 @@ async function replaceSpec(root, text) {
 
 test("accepts the approved public environments and support contact", async (t) => {
   const { root } = await fixture(t);
-  await writeFile(join(root, "unlinked.mdx"), "Use https://sandbox.ledig.io for Sandbox and https://api.ledig.io for Live. Contact support@ledig.io.");
+  await writeFile(join(root, "unlinked.mdx"), "Use https://api-sandbox.ledig.io for Sandbox and https://api.ledig.io for Live. Contact support@ledig.io.");
   assert.deepEqual((await checkRepository(root, { fixture: true })).errors, []);
+});
+
+test("allows dashboard links without accepting the dashboard as an API server", async (t) => {
+  const { root } = await fixture(t);
+  await writeFile(join(root, "unlinked.mdx"), "Open your [Sandbox dashboard](https://sandbox.ledig.io).");
+  assert.deepEqual((await checkRepository(root, { fixture: true })).errors, []);
+  await replaceSpec(root, sampleSpec.replace("  - url: https://api-sandbox.ledig.io", "  - url: https://sandbox.ledig.io"));
+  const { errors } = await checkRepository(root, { fixture: true });
+  assert(errors.some((error) => error.rule === "approved-api-servers-required"));
 });
 
 test("rejects internal customer content even in drafts and unlinked assets", async (t) => {
