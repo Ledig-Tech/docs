@@ -83,6 +83,7 @@
             "group": "Balances",
             "pages": [
               "GET /v1/balances",
+              "GET /v1/balances/summary",
               "GET /v1/balances/{currency}"
             ]
           },

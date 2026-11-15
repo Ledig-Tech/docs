@@ -9,7 +9,7 @@ A payment can have three different limits. Check each one against the right amou
 | --- | --- | --- |
 | Conversion | Amount you convert, in the source currency. | `GET /v1/liquidity/routes` |
 | Payout method or network | Amount the recipient receives, in the destination currency. | `GET /v1/payouts/catalogue` and payment options |
-| Account | The payment's USD-equivalent value. | Your dashboard's account limits |
+| Account | The payment's USD-equivalent value. | `GET /v1/balances/summary` and your dashboard's account limits |
 
 For example, a conversion of **100 USDT to NGN** may fit the conversion limit while the NGN amount exceeds the selected bank payment method's limit. Other NGN methods can have different limits.
 
@@ -33,6 +33,8 @@ If a conversion is missing or the request fails, do not assume it has no limit.
 
 Keep separate bands separate. For example, **10–100** and **200–500** allow payments in either range, but not **150**.
 
+External payout options return these ranges as `amountBands`. The option's `minimumAmount` and `maximumAmount` are the outer bounds; they do not make gaps available. `amountBands` is omitted for deposit options and payments to another Ledig business. A selected method's `availability` may also include bands when explaining an amount failure.
+
 `maximumAmount: null` means that band has no set payout maximum. Account limits and other payment requirements still apply. Missing data is different from a returned `null` maximum.
 
 Check `payoutAvailability`, then request payment options for the recipient, destination currency, amount and crypto network where applicable. Use an ID from the returned `paymentMethodIds` in the quote.
@@ -49,7 +51,9 @@ When you include a selected `paymentMethodId` in the payment-options request, `a
 
 ## Account limits
 
-Your dashboard shows your maximum per payment, monthly allowance and remaining allowance in USD equivalent. These apply alongside conversion and payout limits.
+Call `GET /v1/balances/summary` with `balances:read` to read `payoutAllowance`: `transactionLimitUsd`, `monthlyLimitUsd`, `usedUsd`, `reservedUsd`, `remainingUsd`, `resetsAt` and `timezone`. These values are in USD equivalent and the allowance is shared across profiles belonging to the same business.
+
+Check `enforcementEnabled`: when true, these limits apply alongside conversion and payout limits. Null limits mean unlimited; zero prevents new positive payouts. USD balance estimates remain indicative and do not approve a payment.
 
 | Error | Details you can use |
 | --- | --- |
