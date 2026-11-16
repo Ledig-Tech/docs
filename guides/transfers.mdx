@@ -25,7 +25,7 @@ Content-Type: application/json
 
 The quote must belong to your business, be pending and unexpired, and pass the current payment checks. Your available balance must cover `totalSourceDebitAmount`, including fees.
 
-HTTP `201` means the request was accepted; it does not confirm payment completion. Top-level `replayed: false` identifies a new transfer, and `replayed: true` identifies the original transfer returned without another payment. Save its ID and read `GET /v1/transfers/{id}` to follow its progress. Conversions, external payouts and payments to Ledig businesses use this same flow.
+HTTP `201` means the request was accepted; processing can still fail later. Top-level `replayed: false` identifies a new transfer, and `replayed: true` identifies the original transfer returned without another payment. Save its ID and read `GET /v1/transfers/{id}` to check its current status. Conversions, external payouts and payments to Ledig businesses use this same flow.
 
 ## Processing status
 
@@ -37,7 +37,9 @@ HTTP `201` means the request was accepted; it does not confirm payment completio
 | `failed` | The transfer could not complete. Read the explanation and funds status. |
 | `reversed` | The transfer has been reversed. Check the funds status for the return. |
 
-When returned, use `customerPresentation.label`, `message` and `actionRequired` to explain progress in your interface. `approval` can indicate that a payment is awaiting review.
+For a failed transfer, read `failureReason` for the explanation and `balanceImpact` for the funds status. When returned, use `customerPresentation.label`, `message` and `actionRequired` to explain progress in your interface. `approval` can indicate that a payment is awaiting review.
+
+The top-level `status` is the current result. Earlier `events` describe stages the transfer has already reached.
 
 ## What happened to the funds
 
