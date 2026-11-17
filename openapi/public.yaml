@@ -8630,7 +8630,7 @@ components:
     ClientTransferEvent:
       type: object
       additionalProperties: false
-      description: A transfer progress update and any related payment receipt.
+      description: A transfer progress update or terminal failure. Use the transfer's status for its current outcome.
       required:
         - eventType
         - sourceId
@@ -8645,11 +8645,12 @@ components:
             - created
             - conversion
             - withdrawal
+            - failed
         sourceId:
           type:
             - string
             - "null"
-          description: The payout receipt reference for a withdrawal event. Null for created and conversion events.
+          description: The payout receipt reference for a withdrawal event. Null for created, conversion and failed events.
         status:
           type: string
         createdAt:
@@ -8739,6 +8740,10 @@ components:
                   type: string
                 payoutFeeSourceCurrency:
                   type: string
+                completionBasis:
+                  type: string
+                  const: sent_to_bank
+                  description: sent_to_bank means the payment has been sent to the banking network. The recipient bank may still be processing the credit. Financial status remains completed.
                 transactionHash:
                   type: string
                 processingState:
