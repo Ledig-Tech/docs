@@ -8740,6 +8740,10 @@ components:
                   type: string
                 payoutFeeSourceCurrency:
                   type: string
+                completionBasis:
+                  type: string
+                  const: sent_to_bank
+                  description: sent_to_bank means the payment has been sent to the banking network. The recipient bank may still be processing the credit. Financial status remains completed.
                 transactionHash:
                   type: string
                 processingState:
